@@ -4,7 +4,7 @@
 # ============================ EDIT HERE ============================
 # The OneDrive link, locked with the setup password. To change it: put the new link in .env
 # as OFFICE_ISO_LINK and run tools\lock-value.ps1, then paste the result here.
-$LockedIsoLink = 'v1:AImN0aI6k+Kc15qr+f/udwgkIjVWQivDYznn7xraTAoUcQ7qlgUo2Hmoi6e7yplGm6n6wY4+5B2NqSjY/ExFUkHcoTidC/gcNYcL3HwCcCNkDWaX5Au205K0mkJudZKbAHdASfsPjMvfEEVpKdRR2q78cVhO+oonpwd6SqFFoFsOGQQytk/1AkQAkAD2Vm1sriwvJi67e6FsUwdPKLpEIg=='
+$LockedIsoLink = 'v1:7R7PNrkFzkMskLNitMBpLW8kV7gG5+QLBqD296vS6hiuCjkYVzlMmxafGmKl7WJisFfnSEJ83BwJMcTFTDCrGT1u2VJg8lvb8AY4SSK9ZID0wHu/r4C70asNZQpAxEucM7MlqgGuDtZA2RpIlLv0FmIhbOjg1JgCipAYC49enroZp4lK6qBEoMX+l3uRelavAFjkA9nc6yBl3ot2lS2Cqg=='
 $IsoFileName   = 'OfficeInstaller.iso'
 $MinIsoSizeMB  = 500    # smaller than this = OneDrive sent a sign-in page, not the ISO
 # ===================================================================
