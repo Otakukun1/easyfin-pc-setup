@@ -164,6 +164,20 @@ if ($c2r -and $c2r.ProductReleaseIds) {
         } while ($sw.Elapsed.TotalMinutes -lt 10)
         Write-Progress -Id 2 -Activity 'Removing preinstalled Office' -Completed
         if ($left) {
+            # Backup plan: each trial's own "Uninstall" entry (the one Settings > Apps uses), made silent
+            # with DisplayLevel=False. First laptop test: ODT removed 6 language trials but left en-us.
+            Write-Info 'Trying each trial on its own'
+            $entries = @(Get-InstalledProgram 'Microsoft 365*') + @(Get-InstalledProgram 'Microsoft OneNote*') + @(Get-InstalledProgram 'Microsoft Office*')
+            foreach ($e in ($entries | Where-Object { $_ -and $_.UninstallString -like '*OfficeClickToRun.exe*' } | Sort-Object DisplayName -Unique)) {
+                $cmd = Split-Command $e.UninstallString
+                $code = Invoke-WithProgress -FilePath $cmd[0] -Arguments ($cmd[1] + ' DisplayLevel=False') -NoNewWindow `
+                    -Label "Removing $($e.DisplayName)" -Hint 'removing silently' -TimeoutMinutes 30
+                Write-Log "$($e.DisplayName) removal exit code: $code"
+            }
+            Start-Sleep -Seconds 5
+            $left = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue).ProductReleaseIds
+        }
+        if ($left) {
             $global:EasyfinRestartNeeded = $true
             Write-Warn "Office still lists: $left. It usually finishes after a restart - run Clean-up again after restarting to check."
         } else { Write-Ok 'Preinstalled Office removed.' }
