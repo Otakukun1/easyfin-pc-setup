@@ -131,6 +131,8 @@ PCs are mixed brands, so the remove list covers the common ones.
   manufacturer extras (Dell, HP, Lenovo, Acer, Asus), other preinstalled junk.
 - Turn off startup items on a known-junk list. Anything not on the list is **shown, not touched** —
   so drivers and needed tools (AnyDesk etc.) keep working.
+- Remove the **personal** Teams (Windows 11 "Microsoft Teams (free)", package `MicrosoftTeams`) so staff
+  don't open the wrong one. The work or school Teams (`MSTeams`) installed by Apps stays.
 - Never removes: Store, Calculator, Photos, Snipping Tool, Windows Security.
 - The remove list sits at the top of the script so it's easy to add to.
 
