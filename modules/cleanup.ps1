@@ -85,6 +85,18 @@ if (Get-InstalledProgram 'McAfee*') {
         Write-Warn "McAfee's removal tool is opening. Click Next, agree, type the letters it shows, and let it finish."
         Write-Warn 'When it asks to restart, choose LATER - this script restarts once at the end.'
         [void](Invoke-WithProgress -FilePath $mcpr -Label 'McAfee removal tool' -Hint 'finish the steps in the McAfee window' -TimeoutMinutes 30)
+        # MCPR.exe unpacks itself to TEMP, starts the real tool there and exits straight away -
+        # so wait for that copy too, or the script races ahead while McAfee is still removing.
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalMinutes -lt 30) {
+            $busy = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.Name -match 'mcpr|mccleanup' -or ($_.Path -and $_.Path -like "$env:TEMP*" -and $_.Company -like '*McAfee*')
+            }
+            if (-not $busy) { break }
+            Write-Progress -Id 2 -ParentId 1 -Activity 'McAfee removal tool' -Status ('finish the steps in the McAfee window  |  running for {0}' -f (Format-Duration $sw.Elapsed))
+            Start-Sleep -Seconds 1
+        }
+        Write-Progress -Id 2 -Activity 'McAfee removal tool' -Completed
         Remove-Item $mcpr -Force -ErrorAction SilentlyContinue
         $global:EasyfinRestartNeeded = $true
         if (Get-InstalledProgram 'McAfee*') { Write-Warn 'McAfee still shows as installed - it usually disappears after the restart.' }
@@ -142,9 +154,19 @@ if ($c2r -and $c2r.ProductReleaseIds) {
         $code = Invoke-WithProgress -FilePath $odt -Arguments "/configure `"$xml`"" -Label 'Removing preinstalled Office' -Hint 'removing silently - can take 5-10 minutes' -TimeoutMinutes 45
         Write-Log "Office removal exit code: $code"
         Remove-Item $odtDir -Recurse -Force -ErrorAction SilentlyContinue
-        $left = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue).ProductReleaseIds
-        if ($left) { Write-Fail "Preinstalled Office still there: $left"; $problems += 'Preinstalled Office' }
-        else { Write-Ok 'Preinstalled Office removed.' }
+        # Office's own background service keeps removing after setup.exe exits; give it time.
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            $left = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue).ProductReleaseIds
+            if (-not $left) { break }
+            Write-Progress -Id 2 -ParentId 1 -Activity 'Removing preinstalled Office' -Status ('finishing off  |  {0}' -f (Format-Duration $sw.Elapsed))
+            Start-Sleep -Seconds 5
+        } while ($sw.Elapsed.TotalMinutes -lt 10)
+        Write-Progress -Id 2 -Activity 'Removing preinstalled Office' -Completed
+        if ($left) {
+            $global:EasyfinRestartNeeded = $true
+            Write-Warn "Office still lists: $left. It usually finishes after a restart - run Clean-up again after restarting to check."
+        } else { Write-Ok 'Preinstalled Office removed.' }
     } catch {
         Write-Fail "Preinstalled Office removal failed: $($_.Exception.Message)"; $problems += 'Preinstalled Office'
     }
@@ -156,7 +178,8 @@ if ($c2r -and $c2r.ProductReleaseIds) {
 Set-CleanupProgress 5 'Junk apps'
 Write-Step 'Junk apps (games, ads, personal Teams, new Outlook)'
 function Test-Kept { param([string]$Name) foreach ($k in $KeepApps) { if ($Name -like $k) { return $true } }; return $false }
-$installed   = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue)
+$installed   = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object {
+    $_.PackageUserInformation | Where-Object { "$($_.InstallState)" -eq 'Installed' } })
 $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)
 $removed = 0
 foreach ($pattern in $RemoveApps) {
@@ -165,13 +188,31 @@ foreach ($pattern in $RemoveApps) {
     if ($inst.Count -eq 0 -and $prov.Count -eq 0) { continue }
     $label = @($inst | Select-Object -ExpandProperty Name) + @($prov | Select-Object -ExpandProperty DisplayName) | Select-Object -First 1
     Write-Progress -Id 2 -ParentId 1 -Activity 'Removing apps' -Status $label
-    try {
-        foreach ($p in $inst) { Remove-AppxPackage -Package $p.PackageFullName -AllUsers -ErrorAction Stop }
-        foreach ($p in $prov) { Remove-AppxProvisionedPackage -Online -PackageName $p.PackageName -ErrorAction Stop | Out-Null }
+    # Each removal is tried on its own and errors are only reported if the app is really still there:
+    # on Windows 11, removing for all users also removes the "install for new users" copy, so the
+    # second removal then fails with "cannot find the path" even though the app is gone.
+    $lastError = ''
+    foreach ($p in $inst) {
+        try { Remove-AppxPackage -Package $p.PackageFullName -AllUsers -ErrorAction Stop }
+        catch {
+            $lastError = $_.Exception.Message
+            try { Remove-AppxPackage -Package $p.PackageFullName -ErrorAction Stop } catch { }
+        }
+    }
+    foreach ($p in $prov) {
+        try { Remove-AppxProvisionedPackage -Online -PackageName $p.PackageName -ErrorAction Stop | Out-Null }
+        catch { $lastError = $_.Exception.Message }
+    }
+    $stillInst = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -like $pattern -and -not (Test-Kept $_.Name) -and
+        ($_.PackageUserInformation | Where-Object { "$($_.InstallState)" -eq 'Installed' })
+    })
+    $stillProv = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $pattern -and -not (Test-Kept $_.DisplayName) })
+    if ($stillInst.Count -eq 0 -and $stillProv.Count -eq 0) {
         Write-Ok "$label removed."
         $removed++
-    } catch {
-        Write-Fail "$label could not be removed: $($_.Exception.Message)"; $problems += $label
+    } else {
+        Write-Fail "$label could not be removed: $lastError"; $problems += $label
     }
 }
 Write-Progress -Id 2 -Activity 'Removing apps' -Completed
