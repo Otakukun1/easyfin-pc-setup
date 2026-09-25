@@ -133,6 +133,11 @@ PCs are mixed brands, so the remove list covers the common ones.
   so drivers and needed tools (AnyDesk etc.) keep working.
 - Remove the **personal** Teams (Windows 11 "Microsoft Teams (free)", package `MicrosoftTeams`) so staff
   don't open the wrong one. The work or school Teams (`MSTeams`) installed by Apps stays.
+- Remove the **preinstalled Office**: the "Microsoft 365 (Office)" / "Microsoft 365 Copilot" app
+  (`Microsoft.MicrosoftOfficeHub`), and any manufacturer-loaded Microsoft 365 / OneNote trial
+  (Click-to-Run, often several languages). Removed with Microsoft's Office Deployment Tool
+  (`<Remove All="TRUE"/>`), downloaded from Microsoft. This only removes Click-to-Run Office,
+  never Office 2013. Clean-up runs before the Office module, so Office 2013 installs cleanly.
 - Never removes: Store, Calculator, Photos, Snipping Tool, Windows Security.
 - The remove list sits at the top of the script so it's easy to add to.
 

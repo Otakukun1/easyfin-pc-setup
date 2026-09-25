@@ -42,7 +42,7 @@ $newer = Get-InstalledProgram 'Microsoft 365*'
 if (-not $newer) { $newer = Get-InstalledProgram 'Microsoft Office*20[12][0-9]*' | Where-Object { $_.DisplayName -notlike '*2013*' } }
 if ($newer) {
     Write-Warn ('A different Office is already on this PC: ' + (($newer | Select-Object -ExpandProperty DisplayName -Unique) -join ', '))
-    Write-Warn 'Office 2013 setup usually fails next to it. Remove it first (Settings > Apps), then run this again.'
+    Write-Warn 'Office 2013 setup usually fails next to it. Run Clean-up (option 2) first, or remove it in Settings > Apps.'
     $ans = Read-Host '   Carry on anyway? (Y/N)'
     if ($ans -notmatch '^[Yy]') { throw 'Stopped: another Office version is installed.' }
 }
