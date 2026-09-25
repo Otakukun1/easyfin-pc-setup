@@ -151,7 +151,7 @@ if ($c2r -and $c2r.ProductReleaseIds) {
         Save-Download -Url 'https://officecdn.microsoft.com/pr/wsus/setup.exe' -OutFile $odt -Label "Downloading Microsoft's Office removal tool"
         $xml = Join-Path $odtDir 'remove.xml'
         Set-Content -Path $xml -Encoding ASCII -Value '<Configuration><Remove All="TRUE" /><Display Level="None" AcceptEULA="TRUE" /></Configuration>'
-        $code = Invoke-WithProgress -FilePath $odt -Arguments "/configure `"$xml`"" -Label 'Removing preinstalled Office' -Hint 'removing silently - can take 5-10 minutes' -TimeoutMinutes 45
+        $code = Invoke-WithProgress -FilePath $odt -Arguments "/configure `"$xml`"" -Label 'Removing preinstalled Office' -Hint 'removing silently - can take 5-10 minutes' -TimeoutMinutes 45 -NoNewWindow
         Write-Log "Office removal exit code: $code"
         Remove-Item $odtDir -Recurse -Force -ErrorAction SilentlyContinue
         # Office's own background service keeps removing after setup.exe exits; give it time.
