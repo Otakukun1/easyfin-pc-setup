@@ -25,3 +25,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# --- Old Office script: holds a private OneDrive link, must never reach the public repo ---
+Get-OfficeISO.ps1
+
+# --- Browser-tool leftovers ---
+.playwright-mcp/

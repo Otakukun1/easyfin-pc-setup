@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-09-25 — Test build: menu, Apps, Office 2013
+
+- Menu (`start.ps1`), shared helpers (`lib/common.ps1`), Apps and Office 2013 modules, README.
+- Apps: Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader. AweSun installer is not silent.
+- Office link locked with a setup password (in `.env`, never uploaded).
+- Checked on Nico's PC: syntax in PowerShell 5.1, app detection, AweSun link lookup, a real
+  download, unlocking the link, and the first 20 MB of the Office download. Not yet run end to end as admin.
+
 ## 2026-09-25 — Project created
 
 PowerShell toolkit to set up new Easyfin work PCs from one pasted line. Folder

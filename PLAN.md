@@ -1,7 +1,7 @@
 # Easyfin PC Setup — Plan
 
 The design for the toolkit, agreed **before** any script is written.
-Read this, answer the questions at the bottom, then we build one module at a time.
+We build one module at a time; Nico tests each on a real PC before the next.
 
 ---
 
@@ -10,11 +10,14 @@ Read this, answer the questions at the bottom, then we build one module at a tim
 On a brand-new work PC you open PowerShell **as administrator**, paste one line:
 
 ```powershell
-irm https://raw.githubusercontent.com/<account>/easyfin-pc-setup/main/start.ps1 | iex
+irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/start.ps1 | iex
 ```
 
 A menu appears. You pick what to run. Each choice downloads that one script
 from GitHub and runs it. Nothing is installed on the PC first.
+
+The GitHub project is **public**. Nothing private is ever saved in it — anything
+private (the Office download link, passwords) is typed in when the script runs.
 
 ---
 
@@ -26,20 +29,20 @@ easyfin-pc-setup/
 ├── lib/
 │   └── common.ps1                Shared helpers: coloured output, logging, "is it installed?" checks
 ├── modules/
-│   ├── pc-settings.ps1           1. Restore point, PC name, time zone
-│   ├── apps.ps1                  2. Chrome, AnyDesk, Teams, Acrobat Reader
-│   ├── chrome-bookmarks.ps1      3. "Easyfin" bookmark folder in Chrome
-│   └── office.ps1                4. Microsoft 365 Apps
-├── config/
-│   └── office-configuration.xml  What Office installs (edit this, not the script)
+│   ├── pc-settings.ps1           1. Restore point, PC name, time zone, region, PC info file
+│   ├── cleanup.ps1               2. Remove bloatware, trial antivirus, junk startup items
+│   ├── apps.ps1                  3. Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader
+│   ├── chrome-bookmarks.ps1      4. Easyfin bookmarks and folders in Chrome
+│   ├── office.ps1                5. Office 2013 from Nico's own installer
+│   ├── windows-update.ps1        6. Install all Windows updates
+│   └── email-account.ps1         7. Add a staff email account to Outlook (later)
 ├── README.md                     The one-liner, what each module does, how to add one
 ├── CLAUDE.md                     Rules for Claude when working on this project
 ├── PLAN.md                       This file
 └── LOG.md                        What changed, newest first
 ```
 
-Why `lib/common.ps1`: every module needs the same coloured output and logging.
-Writing it once means a fix in one place fixes every module.
+More modules get added over time — each one is a new file plus one line in the menu list.
 
 ---
 
@@ -51,37 +54,41 @@ Writing it once means a fix in one place fixes every module.
     PC: DESKTOP-7F3K2  |  Admin: yes
   ==========================================
 
-    1  Basic PC settings   restore point, PC name, time zone
-    2  Apps                Chrome, AnyDesk, Teams, Acrobat Reader
-    3  Chrome bookmarks    Easyfin bookmark folder
-    4  Microsoft Office    Word, Excel, PowerPoint, Outlook
+    1  PC settings        restore point, PC name, time and region
+    2  Clean-up           bloatware, trial antivirus, startup junk
+    3  Apps               Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader
+    4  Chrome bookmarks   Easyfin bookmarks and folders
+    5  Office 2013        from your own installer
+    6  Windows updates    install everything available
 
-    A  Run everything (1 to 4, in order)
+    7  Email account      add a staff member's email to Outlook
+
+    A  Run everything (1 to 6, in order)
     Q  Quit
 
-  Choose (you can also type several, e.g. 2,3):
+  Choose (you can also type several, e.g. 3,4):
 ```
 
-Design decisions:
+Why this order:
 
-- **PC settings is number 1** because the restore point must be made before
-  anything else changes the PC. "Run everything" runs in menu order.
-- **"Run everything" asks all its questions first** (only the PC name, for now),
-  then runs without stopping, so you can walk away.
-- **Several at once:** typing `2,3` runs just those two.
-- After a module finishes you go back to the menu. The summary shows when you quit
-  or when "Run everything" ends.
+- **PC settings first** — the restore point must exist before anything changes.
+- **Clean-up before Apps** — so the clean-up can never touch something we just installed.
+- **Windows updates last** — it's the slowest and the one most likely to want a restart.
+- **Email account is not in "Run everything"** — it's per staff member, done after the PC is set up.
+- **"Run everything" asks all its questions first** (PC name, Office link), then runs without stopping.
+- Restart is offered once, at the very end.
 
 ### The module list at the top of start.ps1
 
-Adding a module later = drop the file in `modules/` and add one line here:
-
 ```powershell
 $Modules = @(
-    @{ Key = '1'; Name = 'Basic PC settings'; File = 'modules/pc-settings.ps1';      Info = 'restore point, PC name, time zone' }
-    @{ Key = '2'; Name = 'Apps';              File = 'modules/apps.ps1';             Info = 'Chrome, AnyDesk, Teams, Acrobat Reader' }
-    @{ Key = '3'; Name = 'Chrome bookmarks';  File = 'modules/chrome-bookmarks.ps1'; Info = 'Easyfin bookmark folder' }
-    @{ Key = '4'; Name = 'Microsoft Office';  File = 'modules/office.ps1';           Info = 'Word, Excel, PowerPoint, Outlook' }
+    @{ Key = '1'; Name = 'PC settings';      File = 'modules/pc-settings.ps1';      RunAll = $true;  Info = 'restore point, PC name, time and region' }
+    @{ Key = '2'; Name = 'Clean-up';         File = 'modules/cleanup.ps1';          RunAll = $true;  Info = 'bloatware, trial antivirus, startup junk' }
+    @{ Key = '3'; Name = 'Apps';             File = 'modules/apps.ps1';             RunAll = $true;  Info = 'Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader' }
+    @{ Key = '4'; Name = 'Chrome bookmarks'; File = 'modules/chrome-bookmarks.ps1'; RunAll = $true;  Info = 'Easyfin bookmarks and folders' }
+    @{ Key = '5'; Name = 'Office 2013';      File = 'modules/office.ps1';           RunAll = $true;  Info = 'from your own installer' }
+    @{ Key = '6'; Name = 'Windows updates';  File = 'modules/windows-update.ps1';   RunAll = $true;  Info = 'install everything available' }
+    @{ Key = '7'; Name = 'Email account';    File = 'modules/email-account.ps1';    RunAll = $false; Info = "add a staff member's email to Outlook" }
 )
 ```
 
@@ -93,83 +100,104 @@ $Modules = @(
 |---|---|
 | Works on the PowerShell built into Windows (5.1) | No PowerShell 7-only features anywhere |
 | Stops if not run as admin | `start.ps1` checks first and says so in red |
-| Safe to run twice | Every step checks "already done?" and skips with a grey "already done" line |
+| Safe to run twice | Every step checks "already done?" and skips it |
 | Coloured output | Green = done, Yellow = skipped/warning, Red = failed, Cyan = step heading |
 | Log file | `C:\Temp\Setup\logs\setup-<date>-<time>.log` — one per run |
 | One failure doesn't stop the rest | Each module runs inside its own error trap; the next one still runs |
 | Summary at the end | Table: module, result (OK / Failed / Skipped), how long it took |
-| No secrets | Nothing in the repo needs a password or key. The repo is public. |
+| No secrets in the project | Anything private is typed in at run time and never written to the log |
 
 ---
 
-## The four modules
+## The modules
 
-### 1. Basic PC settings
-1. Turn on System Protection for C: if it's off (it often is on new PCs), then make a restore point.
-2. Ask for the new PC name, check it's a valid Windows name (max 15 characters, letters/numbers/dash).
-   Skip if the PC already has that name.
-3. Set time zone to South Africa Standard Time. Skip if already set.
-4. Say clearly that the new name only takes effect after a restart. Offer to restart at the very end, not mid-run.
+### 1. PC settings
+1. Turn on System Protection for C: if it's off, then make a restore point.
+2. Ask for the PC name and check it follows the naming rule (below). Skip if already named that.
+3. Time zone: South Africa Standard Time. Sync the clock with the internet time server.
+4. Region: South Africa (English) — date format, currency (R), number format.
+5. Save a PC info file (name, serial number, make, model, RAM, Windows version) to
+   `C:\Temp\Setup\pc-info.json` — ready for the portal's asset manager later.
 
-### 2. Apps
-For each of Chrome, AnyDesk, Teams (new), Acrobat Reader:
-1. Already installed? → skip.
-2. Try winget (Windows' built-in app installer).
-3. If winget is missing or fails → download the vendor's official installer and run it silently.
-4. Check again that it's now installed.
+**Naming rule:** `EF-ABC-L01`
+- `EF` = Easyfin
+- `ABC` = 3-letter branch code (list at the top of the script)
+- `L` = laptop, `D` = desktop
+- `01` = number
 
-Each app is one entry in a list at the top of the script (winget ID, direct download link, silent switches, how to detect it).
+### 2. Clean-up
+PCs are mixed brands, so the remove list covers the common ones.
+- Remove: games (Candy Crush etc.), Xbox apps, trial antivirus (McAfee, Norton, etc.),
+  manufacturer extras (Dell, HP, Lenovo, Acer, Asus), other preinstalled junk.
+- Turn off startup items on a known-junk list. Anything not on the list is **shown, not touched** —
+  so drivers and needed tools (AnyDesk etc.) keep working.
+- Never removes: Store, Calculator, Photos, Snipping Tool, Windows Security.
+- The remove list sits at the top of the script so it's easy to add to.
 
-### 3. Chrome bookmarks
-Writes Chrome's `ManagedBookmarks` policy to the registry, in a folder called "Easyfin".
-The bookmark list is at the top of the script (placeholders to start). Running it again
-simply overwrites with the current list. Staff can't delete these bookmarks — that's how
-Chrome policies work.
+### 3. Apps
+Chrome, AnyDesk, Microsoft Teams (new), AweSun, Adobe Acrobat Reader. No setup after install.
+For each: already installed → skip. Otherwise winget (Windows' built-in app installer);
+if that fails, download the vendor's official installer and run it silently.
+Each app is one entry in a list at the top of the script.
 
-### 4. Microsoft Office
-1. Already installed (Microsoft 365 Apps found)? → skip.
-2. Download Microsoft's Office Deployment Tool straight from Microsoft.
-3. Download `config/office-configuration.xml` from the repo.
-4. Run the install silently: 64-bit, English, Word, Excel, PowerPoint, Outlook. No Teams, OneNote, Access, Publisher, etc.
+### 4. Chrome bookmarks
+Writes Chrome's `ManagedBookmarks` policy: a top folder "Easyfin", with sub-folders.
+The bookmark list sits at the top of the script (placeholders to start). Running again
+overwrites with the current list. Staff can't delete these. Check at `chrome://policy`.
+
+### 5. Office 2013
+Nico's own Office 2013 installer file on OneDrive. **Decision pending** — see questions.
+No product key for now.
+
+### 6. Windows updates
+Uses Windows' own update service (no extra downloads). Installs all available updates,
+shows progress, says if a restart is needed. Safe to run again after the restart to pick up
+the next round.
+
+### 7. Email account (later)
+All staff accounts use the same settings; only the email address and password change.
+The script asks for both, the password is never saved in the project or the log.
 
 ---
 
 ## Things you should know up front
 
-- **Whoever controls the GitHub account controls every PC this runs on.** The one-liner runs
-  whatever is in the repo at that moment. Turn on two-factor login on the GitHub account.
-- **Bookmarks will be public.** The repo is public, so anyone can see the bookmark links.
-  Fine for public sites (the portal login page is public anyway). Don't put anything private in them.
+- **Whoever controls the GitHub account controls every PC this runs on.** Turn on two-step login.
+- **Bookmarks will be public** (the project is public). Don't put anything private in them.
+- **Office 2013 has had no security updates since April 2023.** Nico's decision to keep it; only module 5 changes when he moves off it.
 - **Restore points:** Windows only allows one every 24 hours by default. The script works around that.
-- **winget on a fresh PC** is sometimes not ready until Windows has updated the Store once.
-  That's exactly why the fallback download exists.
-- **Old Windows 10 PCs** can fail to download from GitHub because of an old security setting.
-  `start.ps1` switches on the modern one (TLS 1.2) first, but the one-liner itself runs before
-  that — if it fails on an old PC, the README will give a slightly longer one-liner that fixes it.
+- **winget on a fresh PC** is sometimes not ready until Windows has updated the Store once — that's why the fallback exists.
+- **Old Windows 10 PCs** can fail to download from GitHub because of an old security setting. The README will have a slightly longer paste line for those.
 
 ---
 
-## Build order (one at a time, you test each on a real PC)
+## Build order (one at a time, Nico tests each on a real PC)
 
 | Step | What | You test |
 |---|---|---|
-| 1 | `start.ps1` + `lib/common.ps1` + README skeleton, push to GitHub | One-liner shows menu, admin check, log file appears |
-| 2 | Module 1 — PC settings | Rename, time zone, restore point; run twice |
-| 3 | Module 2 — Apps | All four install; run twice; test with winget broken |
-| 4 | Module 3 — Chrome bookmarks | Folder shows in Chrome (`chrome://policy` to confirm) |
-| 5 | Module 4 — Office | Office installs and activates when you sign in |
-| 6 | "Run everything" end to end on a clean PC | Summary is correct |
+| 1 | Menu + shared helpers + README, push to GitHub | Paste line shows menu, admin check, log file appears |
+| 2 | Module 1 — PC settings | Name rule, time, region, restore point, PC info file; run twice |
+| 3 | Module 2 — Clean-up | Junk gone, nothing needed gone; run twice |
+| 4 | Module 3 — Apps | All five install; run twice |
+| 5 | Module 4 — Chrome bookmarks | Folders show in Chrome |
+| 6 | Module 5 — Office 2013 | Downloads and installs |
+| 7 | Module 6 — Windows updates | Updates install, restart message correct |
+| 8 | "Run everything" on a clean PC | Summary correct |
+| 9 | Module 7 — Email account | Account works in Outlook |
 
 ---
 
-## Questions for you
+## Decisions log
 
-1. **GitHub account and repo name.** You're logged in as `Otakukun1`. Use that, with the repo
-   called `easyfin-pc-setup`? Or a company GitHub account?
-2. **PC naming rule.** Do Easyfin PCs follow a pattern (e.g. `EF-BRANCHNAME-01`)? If yes the
-   script can check the name matches it.
-3. **Office update channel.** Default is "Current Channel" (updates monthly, newest features).
-   The other common choice is "Monthly Enterprise" (updates once a month on a fixed day, fewer surprises).
-4. **Restart at the end.** Offer a restart (Y/N) at the end of "Run everything"? Recommended yes.
-5. **Anything already on new PCs?** E.g. do they come with a manufacturer's Office trial or
-   McAfee that should be removed? That would be a good future module.
+- **25 Sep 2026** — GitHub `Otakukun1/easyfin-pc-setup`, public. Private things typed in at run time.
+- **25 Sep 2026** — Naming rule `EF-ABC-L01` agreed; ties in with the portal asset manager later.
+- **25 Sep 2026** — Office stays Office 2013 from Nico's own installer (not Microsoft 365). No product key for now.
+- **25 Sep 2026** — Apps: Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader. No setup after install.
+- **25 Sep 2026** — Added modules: clean-up, Windows updates, email account.
+- **25 Sep 2026** — Restart offered once, at the end.
+
+## Still open
+
+1. **Branch codes** — list of branches and a 3-letter code for each.
+2. **Office download** — how the script gets the file (see chat, 25 Sep).
+3. **Email account** — which email service Easyfin uses (for module 7, not needed yet).

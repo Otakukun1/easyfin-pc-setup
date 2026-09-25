@@ -10,7 +10,7 @@ runs it. Design and build order: [PLAN.md](PLAN.md). History: [LOG.md](LOG.md).
 
 - Windows PowerShell **5.1** (the one built into Windows). Must also run on 7, but 5.1 is the target.
 - winget for app installs, with vendor-installer fallback.
-- Office Deployment Tool (downloaded from Microsoft at run time) for Microsoft 365 Apps.
+- Office 2013 from Nico's own ISO on OneDrive (link locked, see below). Not Microsoft 365 — his decision.
 - No dependencies, no modules from the PowerShell Gallery.
 
 ## Project structure
@@ -19,8 +19,17 @@ runs it. Design and build order: [PLAN.md](PLAN.md). History: [LOG.md](LOG.md).
 start.ps1        — the menu; $Modules list at the top is the only place modules are registered
 lib/common.ps1   — shared helpers (Write-Step/Ok/Skip/Fail, logging, installed-app checks)
 modules/*.ps1    — one script per menu item
-config/          — editable config the modules download (office-configuration.xml)
+tools/           — run on Nico's PC only (lock-value.ps1)
+.env             — LOCAL ONLY, gitignored: SETUP_PASSWORD and the plain private values
 ```
+
+## Locked (private) values
+
+The repo is public. Private values (the Office 2013 ISO OneDrive link) are stored in modules
+AES-locked with the setup password (`Protect-/Unprotect-/Unlock-SetupSecret` in common.ps1).
+The password lives only in Nico's `.env` and password manager; the script prompts for it at run time.
+To change a value: edit `.env`, run `tools\lock-value.ps1 -Name <NAME>`, paste output into the module.
+Never log the password or an unlocked value.
 
 ## How modules run
 
@@ -76,5 +85,12 @@ config/          — editable config the modules download (office-configuration.
 - winget may be missing or unregistered on a fresh PC until App Installer updates; when run elevated
   it sometimes isn't on PATH — resolve it from `C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*`.
 - Rename-Computer needs a restart to take effect.
+- OneDrive share links set a FedAuth cookie on the first response and 403 the redirect without it —
+  downloads must keep cookies (Save-Download uses a CookieContainer). Plain curl.exe -L fails.
+- AweSun is not in winget and has no fixed download link; the module asks
+  `client-api-global.aweray.com/softwares/SUNLOGIN_X_WINDOWS?lang=en&x64=1` for `downloadurl`.
+  No known silent switch, so its installer runs visibly.
+- winget is run via `Start-Process -NoNewWindow` so its progress bar draws; `& winget` inside a
+  function pipes its output into the return value.
 - Chrome ManagedBookmarks is a JSON string at `HKLM:\SOFTWARE\Policies\Google\Chrome\ManagedBookmarks`;
   folder name via `toplevel_name`. Verify at `chrome://policy`.
