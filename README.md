@@ -29,7 +29,7 @@ irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/start.ps1 
 | 4 | Chrome bookmarks | Easyfin bookmark folders in Chrome | coming soon |
 | 5 | Office 2013 | Downloads the Office installer from OneDrive and runs setup. Asks for the **setup password** | **ready** |
 | 6 | Windows updates | Installs all available updates | coming soon |
-| 7 | Email account | Adds a staff member's email to Outlook | coming soon |
+| 7 | Email account | Adds a staff member's POP email (@bloans.co.za) to Outlook 2013. Run it signed in to Windows as that staff member. Outlook asks the password once | **ready** |
 
 Everything is safe to run twice: anything already done is skipped.
 

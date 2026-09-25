@@ -163,7 +163,17 @@ the next round.
 
 ### 7. Email account (later)
 All staff accounts use the same settings; only the email address and password change.
-The script asks for both, the password is never saved in the project or the log.
+Script asks for name + email and creates the Outlook 2013 account; Outlook asks the password once
+on first open ("remember password"). The password is never saved in the project or the log.
+
+Mail settings (from Nico, 26 Sep 2026; checked from outside the same day):
+- Username = full email address (`name@bloans.co.za`)
+- Incoming `mail.bloans.co.za`, outgoing `smtp.bloans.co.za` (same server, cPanel/Dovecot, 197.189.230.11)
+- Outgoing port 587, "my outgoing server requires authentication - same as incoming" ON
+- Currently encryption OFF. Server supports encryption on 993 (IMAP), 995 (POP), 465 and 587.
+  Its certificate covers `mail.bloans.co.za`, but only for programs that ask for the name
+  (SNI); others get the host's own name `alma3.ds03-dcsrv.com` -> "name doesn't match" warning.
+  Likely why encryption was switched off. **Open:** IMAP or POP; encryption on or off.
 
 ---
 

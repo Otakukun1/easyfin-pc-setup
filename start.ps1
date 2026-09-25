@@ -18,7 +18,7 @@ $Modules = @(
     @{ Key = '4'; Name = 'Chrome bookmarks'; File = 'modules/chrome-bookmarks.ps1'; Ready = $false; RunAll = $true;  Info = 'Easyfin bookmarks and folders' }
     @{ Key = '5'; Name = 'Office 2013';      File = 'modules/office.ps1';           Ready = $true;  RunAll = $true;  Info = 'from your own installer (needs setup password)' }
     @{ Key = '6'; Name = 'Windows updates';  File = 'modules/windows-update.ps1';   Ready = $false; RunAll = $true;  Info = 'install everything available' }
-    @{ Key = '7'; Name = 'Email account';    File = 'modules/email-account.ps1';    Ready = $false; RunAll = $false; Info = "add a staff member's email to Outlook" }
+    @{ Key = '7'; Name = 'Email account';    File = 'modules/email-account.ps1';    Ready = $true ; RunAll = $false; Info = "add a staff member's email to Outlook" }
 )
 # ===================================================================
 

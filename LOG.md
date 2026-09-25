@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-09-26 — Email account module, new setup password
+
+- Option 7: adds a POP account to Outlook 2013 via a profile file (outlook /importprf). Settings as
+  Easyfin has always used: mail.bloans.co.za:110, smtp.bloans.co.za:587, no encryption (Nico's call,
+  raised that the server supports encryption). Password typed in Outlook on first open. Not yet tested.
+- Setup password changed at Nico's request; Office link re-locked.
+- Clean-up: fallback removal for Office trials the ODT leaves behind.
+
 ## 2026-09-26 — Clean-up module + install timer
 
 - Clean-up (option 2): restore point, McAfee via McAfee's own removal tool (MCPR, interactive),
