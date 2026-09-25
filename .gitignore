@@ -1,0 +1,27 @@
+# --- Claude Code personal overrides (never commit) ---
+CLAUDE.local.md
+.claude/settings.local.json
+
+# --- Secrets (the repo is public — nothing secret belongs here at all) ---
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+
+# --- Local test output ---
+*.log
+logs/
+Temp/
+
+# --- Downloaded installers (fetched at run time, never committed) ---
+*.exe
+*.msi
+*.msix
+
+# --- OS/editor cruft ---
+Thumbs.db
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
