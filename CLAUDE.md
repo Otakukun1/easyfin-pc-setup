@@ -92,5 +92,10 @@ Never log the password or an unlocked value.
   No known silent switch, so its installer runs visibly.
 - winget is run via `Start-Process -NoNewWindow` so its progress bar draws; `& winget` inside a
   function pipes its output into the return value.
+- Win11: `Remove-AppxPackage -AllUsers` also deprovisions, so a following
+  `Remove-AppxProvisionedPackage` throws "cannot find the path". Judge app removal by re-checking, not by errors.
+- MCPR.exe (McAfee removal) unpacks to %TEMP%, launches the real tool and exits at once — wait on that process.
+- ODT `<Remove All>` returns before Click-to-Run finishes; poll `ClickToRun\Configuration\ProductReleaseIds`.
+- winget exit 3010 on Acrobat = installed, restart needed (winget prints it in red as "failed").
 - Chrome ManagedBookmarks is a JSON string at `HKLM:\SOFTWARE\Policies\Google\Chrome\ManagedBookmarks`;
   folder name via `toplevel_name`. Verify at `chrome://policy`.
