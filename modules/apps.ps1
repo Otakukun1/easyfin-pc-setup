@@ -55,10 +55,12 @@ function Install-WithWinget {
     Write-Info "Installing with winget ($($App.WingetId)) - winget shows its own progress below"
     # Start-Process -NoNewWindow gives winget the console directly so its live progress bar draws;
     # calling it with & would pipe its output and scramble the bar (and pollute this function's return).
-    $p = Start-Process -FilePath $Winget -NoNewWindow -Wait -PassThru -ArgumentList @(
-        'install', '--id', $App.WingetId, '--exact', '--source', 'winget', '--silent',
-        '--accept-package-agreements', '--accept-source-agreements')
-    Write-Log "winget exit code for $($App.Name): $($p.ExitCode)"
+    # The top progress bar shows running time, because big installers (Acrobat ~800 MB) sit on
+    # "Starting package install..." for 5-15 minutes and look frozen.
+    $wingetArgs = "install --id $($App.WingetId) --exact --source winget --silent --accept-package-agreements --accept-source-agreements"
+    $code = Invoke-WithProgress -FilePath $Winget -Arguments $wingetArgs -NoNewWindow -TimeoutMinutes 45 `
+        -Label "Installing $($App.Name)" -Hint 'still working - big apps can take 10+ minutes, do not close this window'
+    Write-Log "winget exit code for $($App.Name): $code"
     return (Test-AppInstalled $App)
 }
 

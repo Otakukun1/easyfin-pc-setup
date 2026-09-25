@@ -149,9 +149,10 @@ function Invoke-WithProgress {
         [string]$Arguments,
         [string]$Label = 'Installing',
         [string]$Hint = 'please wait',
-        [int]$TimeoutMinutes = 30
+        [int]$TimeoutMinutes = 30,
+        [switch]$NoNewWindow
     )
-    $startArgs = @{ FilePath = $FilePath; PassThru = $true }
+    $startArgs = @{ FilePath = $FilePath; PassThru = $true; NoNewWindow = [bool]$NoNewWindow }
     if ($Arguments) { $startArgs.ArgumentList = $Arguments }
     $p = Start-Process @startArgs
     # Touching .Handle straight away is required: without it PS 5.1 often reports ExitCode as empty.
