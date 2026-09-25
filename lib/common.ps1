@@ -58,8 +58,24 @@ function Get-InstalledProgram {
         'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
     )
     Get-ItemProperty -Path $keys -ErrorAction SilentlyContinue |
-        Where-Object { $_.DisplayName -and $_.DisplayName -like $Pattern } |
-        Select-Object DisplayName, DisplayVersion
+        Where-Object { $_.DisplayName -and $_.DisplayName -like $Pattern -and -not $_.SystemComponent } |
+        Select-Object DisplayName, DisplayVersion, UninstallString, QuietUninstallString, PSChildName
+}
+
+# Makes one restore point per run. Turns System Protection on first (often off on new PCs) and
+# lifts Windows' "one per 24 hours" limit, which otherwise makes Checkpoint-Computer silently do nothing.
+function New-SetupRestorePoint {
+    param([string]$Description = 'Easyfin PC Setup')
+    if ($global:EasyfinRestorePointMade) { Write-Skip 'Restore point already made this run.'; return }
+    try {
+        Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction Stop
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name SystemRestorePointCreationFrequency -Value 0 -Type DWord
+        Checkpoint-Computer -Description $Description -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+        $global:EasyfinRestorePointMade = $true
+        Write-Ok 'Restore point made - you can roll back to this moment if anything goes wrong.'
+    } catch {
+        Write-Warn "Could not make a restore point: $($_.Exception.Message)"
+    }
 }
 
 # Elevated sessions often can't find winget on PATH even when it's installed; look in WindowsApps too.

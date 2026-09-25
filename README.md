@@ -24,7 +24,7 @@ irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/start.ps1 
 | # | Option | What it does | Status |
 |---|---|---|---|
 | 1 | PC settings | Restore point, PC name (`EF-ABC-L01` rule), time zone, region, PC info file | coming soon |
-| 2 | Clean-up | Removes bloatware and trial antivirus, turns off junk startup items | coming soon |
+| 2 | Clean-up | Restore point, then removes McAfee and other trial antivirus, preinstalled Office trials, junk apps (games, personal Teams, new Outlook), stops sponsored apps coming back, turns off junk startup items | **ready** |
 | 3 | Apps | Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader. Skips anything already installed. Uses winget, falls back to the vendor's own download | **ready** |
 | 4 | Chrome bookmarks | Easyfin bookmark folders in Chrome | coming soon |
 | 5 | Office 2013 | Downloads the Office installer from OneDrive and runs setup. Asks for the **setup password** | **ready** |
