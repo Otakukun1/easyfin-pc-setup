@@ -218,3 +218,41 @@ Mail settings (from Nico, 26 Sep 2026; checked from outside the same day):
 1. ~~Branch codes~~ — done 1 Oct 2026: portal codes used as-is (2-4 letters, e.g. EF-WBDC-D01).
 2. **Office download** — how the script gets the file (see chat, 25 Sep).
 3. **Email account** — which email service Easyfin uses (for module 7, not needed yet).
+
+---
+
+## Next big step: link to the portal (agreed in principle 1 Oct 2026, NOT started)
+
+Waiting: the portal session is busy rebuilding the documents system. Do not message it about this
+until Nico says so. Nothing below is built on either side.
+
+**What Nico wants:** start the setup from the portal instead of pasting a line, keep private things
+behind the portal login, and have every PC logged in the portal's asset manager.
+
+**Design:**
+- Portal page "Set up a new PC" (login required) -> Download gives a small starter file (.cmd) that
+  asks for admin and opens the menu. It carries a one-time code (valid ~2 hours, tied to the login).
+- With that code the script can: get the branch list, list a branch's PCs (to suggest the next number),
+  create-or-update the PC in the asset manager (by serial number), and get the Office ISO link.
+- Then nothing private is left on GitHub: no locked Office link, no setup password. Install steps stay
+  on GitHub (not secret). The paste line keeps working until the new way is ready.
+- Windows will show "Windows protected your PC" on the starter file (More info > Run anyway); a paid
+  signing certificate would remove it - not worth it for now.
+
+**Portal side (from portal-new session, read from Portal_New code):**
+- Asset register exists: `assets` (asset_tag unique, serial_number unique, branch_id, type_id, ...)
+  plus `asset_data` key/value rows for CPU, RAM, disk, Windows, MACs, setup steps. Types "Laptop" and
+  "Desktop PC" exist.
+- Proposed routes: GET /api/pc-setup/branches, GET /api/pc-setup/assets?branch=CW,
+  POST /api/pc-setup/assets (create-or-update by serial_number). `Authorization: Bearer <key>`.
+  Guard rails: laptop/desktop only, active branch codes only, never sets status/assigned/price,
+  never deletes, 409 if serial is retired/lost or tag belongs to another serial.
+  (That proposal used one long-lived key; the one-time-code idea above replaces it - still to agree.)
+- Goes on the VPS first (no single features pushed to Xneelo before cutover), so the script needs the
+  portal base address as a setting.
+- Tulbagh (TUL) must be added in the portal (Setup > Branches) before a Tulbagh PC can register.
+- Existing portal tags look like EF-LAP-001; new PCs use EF-<code>-<L|D><nn>.
+
+**Script side (this project):** replace the hard-coded branch list with the portal's, suggest the next
+free number, send PC details + step results at the end of each run, fetch the Office link from the
+portal, drop the setup password.
