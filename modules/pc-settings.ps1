@@ -39,28 +39,53 @@ function Get-PendingName {
     (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName' -ErrorAction SilentlyContinue).ComputerName
 }
 
-# Asks for the PC name until it fits the rule. Returns '' to keep the current name.
+# Builds the name step by step: pick the branch by number, laptop/desktop, then the PC number.
+# Returns '' to keep the current name.
 function Read-PcName {
-    if ($Branches.Count -gt 0) {
-        Write-Info 'Branch codes:'
-        foreach ($k in $Branches.Keys) { Write-Info ('   {0,-5} {1}' -f $k, $Branches[$k]) }
+    $codes = @($Branches.Keys)
+    Write-Info 'Branches:'
+    for ($i = 0; $i -lt $codes.Count; $i += 2) {
+        $left = '{0,2}. {1,-5} {2,-26}' -f ($i + 1), $codes[$i], $Branches[$codes[$i]]
+        $right = ''
+        if ($i + 1 -lt $codes.Count) { $right = '{0,2}. {1,-5} {2}' -f ($i + 2), $codes[$i + 1], $Branches[$codes[$i + 1]] }
+        Write-Host "           $left $right" -ForegroundColor Gray
     }
     while ($true) {
-        $n = (Read-Host '   New PC name, e.g. EF-PRL-L01 (L = laptop, D = desktop). Enter = keep current').Trim().ToUpper()
-        if (-not $n) { return '' }
-        if ($n -notmatch '^EF-([A-Z]{2,4})-([LD])(\d{2})$') {
-            Write-Fail 'Must look like EF-PRL-L01: EF, dash, branch code, dash, L or D, 2-digit number.'
-            continue
-        }
-        if ($Branches.Count -gt 0 -and -not $Branches.Contains($Matches[1])) {
-            Write-Fail "'$($Matches[1])' is not a branch code on the list."
-            continue
-        }
-        if ($Branches.Count -eq 0) { Write-Warn 'No branch list yet - accepting any 2-4 letters.' }
-        return $n
+        $pick = (Read-Host '   Branch number (Enter = keep the current PC name)').Trim()
+        if (-not $pick) { return '' }
+        $num = 0
+        if ([int]::TryParse($pick, [ref]$num) -and $num -ge 1 -and $num -le $codes.Count) { $code = $codes[$num - 1]; break }
+        if ($Branches.Contains($pick.ToUpper())) { $code = $pick.ToUpper(); break }
+        Write-Fail "Pick a number from 1 to $($codes.Count)."
     }
-}
+    Write-Info "Branch: $code - $($Branches[$code])"
 
+    # This laptop/desktop guess comes from the PC itself (chassis type), so Enter is usually right.
+    $guess = 'D'
+    foreach ($c in @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)) {
+        if (@(8, 9, 10, 11, 14, 30, 31, 32) -contains [int]$c) { $guess = 'L' }
+    }
+    $guessWord = 'desktop'; if ($guess -eq 'L') { $guessWord = 'laptop' }
+    while ($true) {
+        $kind = (Read-Host "   L = laptop, D = desktop (Enter = $guess, this looks like a $guessWord)").Trim().ToUpper()
+        if (-not $kind) { $kind = $guess }
+        if ($kind -eq 'L' -or $kind -eq 'D') { break }
+        Write-Fail 'Type L or D.'
+    }
+
+    while ($true) {
+        $n = (Read-Host '   PC number at that branch, 1-99 (e.g. 2 for the second laptop)').Trim()
+        $num = 0
+        if ([int]::TryParse($n, [ref]$num) -and $num -ge 1 -and $num -le 99) { break }
+        Write-Fail 'Type a number from 1 to 99.'
+    }
+
+    $name = 'EF-{0}-{1}{2:00}' -f $code, $kind, $num
+    $ok = (Read-Host "   New name will be $name - OK? (Y/N)").Trim()
+    if ($ok -match '^[Yy]') { return $name }
+    Write-Info 'OK, let''s try again.'
+    return (Read-PcName)
+}
 # --- 1. restore point
 Set-PcProgress 1 'Restore point'
 Write-Step 'Restore point'
