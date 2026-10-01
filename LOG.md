@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-10-01 — Window version (trial) + portal link-up plan
+
+- `gui/start-gui.ps1`: guided window (branch drop-down, tick boxes, live Done/Failed per step, progress
+  bar, log box, finish summary). Runs the same modules in a second PowerShell; module questions pop up
+  as dialogs. Separate folder so it can be scrapped. Demo mode tested on Nico's PC (pictures checked);
+  REAL run as administrator not tested yet.
+- PC settings: branch picked by number, laptop/desktop, PC number; Tulbagh (TUL) added.
+- Portal link-up design written into PLAN.md; on hold until the portal's documents rebuild is done.
+
 ## 2026-10-01 — Chrome bookmarks
 
 - Option 4: "Easyfin" folder in Chrome + Edge via ManagedBookmarks/ManagedFavorites policy.

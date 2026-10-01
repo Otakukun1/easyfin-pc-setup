@@ -63,3 +63,20 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
 This runs your local files instead of the ones on GitHub (the menu says "test mode").
+
+## Window version (trial)
+
+A guided window instead of the numbered menu. It runs the same scripts. It lives in `gui\` on its
+own - deleting that folder removes the trial and leaves everything above untouched.
+
+See it without changing anything on the PC (no administrator needed):
+
+```powershell
+$env:EASYFIN_DEMO=1; irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/gui/start-gui.ps1 | iex
+```
+
+Real run (PowerShell as administrator):
+
+```powershell
+irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/gui/start-gui.ps1 | iex
+```
