@@ -26,7 +26,7 @@ irm https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main/start.ps1 
 | 1 | PC settings | Restore point, PC name (`EF-PRL-L01` rule, portal branch codes), time zone + clock sync, region (en-ZA), PC details file `C:\Temp\Setup\pc-info.json` | **ready** |
 | 2 | Clean-up | Restore point, then removes McAfee and other trial antivirus, preinstalled Office trials, junk apps (games, personal Teams, new Outlook), stops sponsored apps coming back, turns off junk startup items | **ready** |
 | 3 | Apps | Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader. Skips anything already installed. Uses winget, falls back to the vendor's own download | **ready** |
-| 4 | Chrome bookmarks | Easyfin bookmark folders in Chrome | coming soon |
+| 4 | Chrome bookmarks | "Easyfin" bookmark folder (with sub-folders) in Chrome and Edge for everyone on the PC. Edit the list at the top of `modules/chrome-bookmarks.ps1` | **ready** |
 | 5 | Office 2013 | Downloads the Office installer from OneDrive and runs setup. Asks for the **setup password** | **ready** |
 | 6 | Windows updates | Installs all available updates and drivers one by one (skips big Windows version upgrades). Run again after the restart | **ready** |
 | 7 | Email account | Adds a staff member's POP email (@bloans.co.za) to Outlook 2013. Run it signed in to Windows as that staff member. Outlook asks the password once | **ready** |

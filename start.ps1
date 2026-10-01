@@ -15,7 +15,7 @@ $Modules = @(
     @{ Key = '1'; Name = 'PC settings';      File = 'modules/pc-settings.ps1';      Ready = $true ; RunAll = $true;  Info = 'restore point, PC name, time and region' }
     @{ Key = '2'; Name = 'Clean-up';         File = 'modules/cleanup.ps1';          Ready = $true ; RunAll = $true;  Info = 'bloatware, trial antivirus, startup junk' }
     @{ Key = '3'; Name = 'Apps';             File = 'modules/apps.ps1';             Ready = $true;  RunAll = $true;  Info = 'Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader' }
-    @{ Key = '4'; Name = 'Chrome bookmarks'; File = 'modules/chrome-bookmarks.ps1'; Ready = $false; RunAll = $true;  Info = 'Easyfin bookmarks and folders' }
+    @{ Key = '4'; Name = 'Chrome bookmarks'; File = 'modules/chrome-bookmarks.ps1'; Ready = $true ; RunAll = $true;  Info = 'Easyfin bookmarks and folders' }
     @{ Key = '5'; Name = 'Office 2013';      File = 'modules/office.ps1';           Ready = $true;  RunAll = $true;  Info = 'from your own installer (needs setup password)' }
     @{ Key = '6'; Name = 'Windows updates';  File = 'modules/windows-update.ps1';   Ready = $true ; RunAll = $true;  Info = 'install everything available' }
     @{ Key = '7'; Name = 'Email account';    File = 'modules/email-account.ps1';    Ready = $true ; RunAll = $false; Info = "add a staff member's email to Outlook" }
