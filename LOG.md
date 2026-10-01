@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-10-01 — Chrome bookmarks
+
+- Option 4: "Easyfin" folder in Chrome + Edge via ManagedBookmarks/ManagedFavorites policy.
+  Portal sub-folder (8 dashboard pages, from Portal_New via the portal session) and Other systems
+  (Webfin, Allps, ARP, SimplePay, MaxMoney). All 7 menu options now built.
+
 ## 2026-10-01 — PC settings + Windows updates
 
 - Nico confirmed Office 2013 (option 5) and Email account (option 7) work on a real laptop.

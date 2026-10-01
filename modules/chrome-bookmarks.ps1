@@ -7,9 +7,26 @@
 # A bookmark:  @{ Name = 'Shown name'; Url = 'https://...' }
 # A folder:    @{ Folder = 'Folder name'; Items = @( bookmarks... ) }
 $TopFolder = 'Easyfin'
+# Portal links from the portal's own dashboard (Portal_New, 1 Oct 2026). Role-only pages just show
+# "access denied" to staff without that role - harmless, so everyone gets the same list.
 $Bookmarks = @(
-    @{ Name = 'Easyfin Portal'; Url = 'https://portaleasfin.co.za' }
-    @{ Name = 'MaxMoney';       Url = 'https://online.maxmoney.co.za/MaxMoney/login/' }
+    @{ Folder = 'Portal'; Items = @(
+        @{ Name = 'Portal - Dashboard';  Url = 'https://portaleasfin.co.za/dashboard' }
+        @{ Name = 'My documents';        Url = 'https://portaleasfin.co.za/documents/inbox' }
+        @{ Name = 'Leave';               Url = 'https://portaleasfin.co.za/leave' }
+        @{ Name = 'Daily Returns';       Url = 'https://portaleasfin.co.za/reports' }
+        @{ Name = 'Weekly Returns';      Url = 'https://portaleasfin.co.za/weekly-returns' }
+        @{ Name = 'Petty Cash';          Url = 'https://portaleasfin.co.za/petty-cash' }
+        @{ Name = 'Attendance';          Url = 'https://portaleasfin.co.za/attendance' }
+        @{ Name = 'Warnings';            Url = 'https://portaleasfin.co.za/documents/warnings' }
+    ) }
+    @{ Folder = 'Other systems'; Items = @(
+        @{ Name = 'Webfin';              Url = 'https://easfin.webfin.co.za/Login.aspx' }
+        @{ Name = 'Allps (debit orders)'; Url = 'https://iserv.amplifin.co.za/allps-i/AllpsiLogon.aspx' }
+        @{ Name = 'ARP (Amplifin reports)'; Url = 'https://iserv.amplifin.co.za/arp/rdCenaccLogon.aspx' }
+        @{ Name = 'SimplePay (payroll)'; Url = 'https://payroll.simplepay.cloud/login' }
+        @{ Name = 'MaxMoney';            Url = 'https://online.maxmoney.co.za/MaxMoney/login/' }
+    ) }
 )
 $AlsoEdge       = $true    # same folder in Microsoft Edge, in case staff open that
 $ShowBookmarkBar = $true   # keep the bookmark bar visible so staff see the folder
