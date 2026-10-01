@@ -215,6 +215,6 @@ Mail settings (from Nico, 26 Sep 2026; checked from outside the same day):
 
 ## Still open
 
-1. **Branch codes** — list of branches and a 3-letter code for each.
+1. ~~Branch codes~~ — done 1 Oct 2026: portal codes used as-is (2-4 letters, e.g. EF-WBDC-D01).
 2. **Office download** — how the script gets the file (see chat, 25 Sep).
 3. **Email account** — which email service Easyfin uses (for module 7, not needed yet).

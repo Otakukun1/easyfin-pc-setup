@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-10-01 — PC settings + Windows updates
+
+- Nico confirmed Office 2013 (option 5) and Email account (option 7) work on a real laptop.
+- Option 1 PC settings: restore point, rename EF-<code>-<L|D><nn> using the portal's own branch codes
+  (2-4 letters, from Portal_New BranchSeeder.php via the portal session), time zone + clock sync,
+  en-ZA region (also copied to sign-in screen / new logins), pc-info.json for the asset manager.
+- Option 6 Windows updates: Windows' own update service, drivers included, feature upgrades skipped,
+  one update at a time with progress. Search tested on Nico's PC; install not yet tested.
+
 ## 2026-09-26 — Email account module, new setup password
 
 - Option 7: adds a POP account to Outlook 2013 via a profile file (outlook /importprf). Settings as
