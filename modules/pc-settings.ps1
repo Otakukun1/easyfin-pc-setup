@@ -14,6 +14,7 @@ $Branches = [ordered]@{
     'QCW' = 'Quickloans CW (Worcester)'; 'ONL' = 'Budget Online'
     'HEI' = 'Heidelberg';      'SWE' = 'Swellendam';     'GEO' = 'George';        'KNY' = 'Knysna'
     'KIL' = 'Killarney';       'MAI' = 'Maitland'
+    'TUL' = 'Tulbagh'   # not in the portal's branch list yet (1 Oct 2026)
     'HO'  = 'Head Office Worcester'; 'WBDC' = 'Worcester Budget Debt Collection'
 }
 $TimeZoneId  = 'South Africa Standard Time'
