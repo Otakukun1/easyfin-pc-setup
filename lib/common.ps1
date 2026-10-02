@@ -428,13 +428,12 @@ $global:EasyfinPendingFile = 'C:\Temp\Setup\pending-portal.json'
 function Test-PortalLinked { return [bool]($global:EasyfinPortal -and $global:EasyfinCode) }
 
 # The setup code travels with every call, so the address must be https. Two exceptions, both for
-# testing only: this PC itself (127.0.0.1), and the VPS's bare address before DNS cutover.
+# testing only: this PC itself (127.0.0.1). Before DNS cutover use the VPS's https test address
+# https://41-222-36-148.sslip.io (open the portal page on it and the paste line carries it).
 function Test-PortalAddressAllowed {
     param([string]$Address)
     if ($Address -match '^https://') { return $true }
     if ($Address -match '^http://127\.0\.0\.1(:\d+)?$') { return $true }
-    # Nico's call 2 Oct 2026: allow the VPS's bare address until DNS cutover. REMOVE after cutover.
-    if ($Address -eq 'http://41.222.36.148') { return $true }
     return $false
 }
 
