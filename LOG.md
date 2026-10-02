@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-10-02 — Script linked to the portal's asset list
+
+- Portal phase 1 is on the VPS (PORTAL-API.md, written by the portal session). The window version now:
+  checks the setup code, takes branches (+ PC name prefix) and staff from the portal, recognises a PC
+  that is already registered (keeps its name), asks the portal for the next free number, and logs the
+  PC + person + step results at the end. Office link comes from the portal when it has one.
+- Only https portal addresses get the code. Test exception: http://41.222.36.148 when the line starts
+  with `$env:EASYFIN_ALLOW_HTTP_TEST=1;` (remove after DNS cutover), and 127.0.0.1.
+- If the portal cannot be reached the record is saved in C:\Temp\Setup\pending-portal.json.
+- Tested against a fake portal on Nico's PC (new PC + already-registered PC, POST bodies checked).
+  NOT yet tested against the real VPS - needs a code Nico makes himself.
+- Nico renamed his own PC with Register this PC: HO-WORC-L01 after restart (worked).
+
 ## 2026-10-02 — Register-this-PC mode
 
 - New module `modules/register-pc.ps1` (menu option 8) and a second mode in the window version:

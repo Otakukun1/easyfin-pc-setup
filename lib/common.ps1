@@ -361,11 +361,11 @@ function Set-PcName {
     Write-Ok "PC will be called $NewName after the restart."
 }
 
-# Collects this PC's details and saves them to C:\Temp\Setup\pc-info.json (later: also sent to the portal).
+# Get-PcInfo collects this PC's details; Save-PcInfo also writes them to C:\Temp\Setup\pc-info.json.
 # AssetTag is the name the PC has in the asset list; it can differ from the Windows name until a rename.
 # Needs no administrator rights - staff can run it on their own PC.
-function Save-PcInfo {
-    param([string]$AssetTag, [string]$UsedBy, [string]$Path = 'C:\Temp\Setup\pc-info.json')
+function Get-PcInfo {
+    param([string]$AssetTag, [string]$UsedBy)
     $cs   = Get-CimInstance Win32_ComputerSystem
     $identity = Get-PcIdentity
     $os   = Get-CimInstance Win32_OperatingSystem
@@ -403,9 +403,155 @@ function Save-PcInfo {
         WindowsUser  = $env:USERNAME
         RecordedOn   = (Get-Date -Format 'yyyy-MM-dd HH:mm')
     }
+    return $info
+}
+
+function Save-PcInfo {
+    param([string]$AssetTag, [string]$UsedBy, [string]$Path = 'C:\Temp\Setup\pc-info.json')
+    $info = Get-PcInfo -AssetTag $AssetTag -UsedBy $UsedBy
     New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
     $info | ConvertTo-Json | Set-Content -Path $Path -Encoding UTF8
     foreach ($k in 'AssetTag', 'PcName', 'UsedBy', 'Type', 'Make', 'Model', 'SerialNumber', 'RamGB', 'Windows') { Write-Info ('{0,-13} {1}' -f $k, $info[$k]) }
     Write-Ok "Saved to $Path"
     return $info
+}
+
+# ---------------------------------------------------------------- portal link (asset register)
+
+# The portal's "Set up a new PC" page prints a line that sets EASYFIN_PORTAL and EASYFIN_CODE.
+# With both set, the script reads branches/staff from the portal and logs each PC in the asset
+# register. Without them everything works as before, just without logging. API: PORTAL-API.md.
+if ($env:EASYFIN_PORTAL -and -not $global:EasyfinPortal) { $global:EasyfinPortal = $env:EASYFIN_PORTAL.Trim().TrimEnd('/') }
+if ($env:EASYFIN_CODE -and -not $global:EasyfinCode) { $global:EasyfinCode = $env:EASYFIN_CODE.Trim() }
+$global:EasyfinPendingFile = 'C:\Temp\Setup\pending-portal.json'
+
+function Test-PortalLinked { return [bool]($global:EasyfinPortal -and $global:EasyfinCode) }
+
+# The setup code travels with every call, so the address must be https. Two exceptions, both for
+# testing only: this PC itself (127.0.0.1), and the VPS's bare address before DNS cutover - and that
+# one only when the person running it adds EASYFIN_ALLOW_HTTP_TEST=1 to the line themselves.
+# Remove the VPS exception once the portal has its https name on the VPS.
+function Test-PortalAddressAllowed {
+    param([string]$Address)
+    if ($Address -match '^https://') { return $true }
+    if ($Address -match '^http://127\.0\.0\.1(:\d+)?$') { return $true }
+    if ($Address -eq 'http://41.222.36.148' -and $env:EASYFIN_ALLOW_HTTP_TEST -eq '1') { return $true }
+    return $false
+}
+
+# Calls the portal. Returns the parsed reply. On a refusal it throws the portal's own plain
+# sentence; the exception's Data['Status'] holds the HTTP status (0 = could not reach it at all).
+function Invoke-Portal {
+    param([string]$Method = 'GET', [Parameter(Mandatory)][string]$Path, $Body, [int]$TimeoutSeconds = 30)
+    if (-not (Test-PortalLinked)) { throw 'Not linked to the portal.' }
+    if (-not (Test-PortalAddressAllowed $global:EasyfinPortal)) {
+        $ex = New-Object Exception("The portal address '$global:EasyfinPortal' is not a secure (https) address, so the setup code will not be sent to it.")
+        $ex.Data['Status'] = -1
+        throw $ex
+    }
+    $req = [Net.HttpWebRequest]::Create($global:EasyfinPortal + '/api/pc-setup' + $Path)
+    $req.Method = $Method
+    $req.Accept = 'application/json'
+    $req.UserAgent = 'EasyfinSetup'
+    $req.Timeout = $TimeoutSeconds * 1000
+    $req.Headers['Authorization'] = "Bearer $global:EasyfinCode"
+    if ($null -ne $Body) {
+        $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $Body -Depth 6 -Compress))
+        $req.ContentType = 'application/json'
+        $req.ContentLength = $bytes.Length
+        $s = $req.GetRequestStream(); $s.Write($bytes, 0, $bytes.Length); $s.Dispose()
+    }
+    $resp = $null
+    try { $resp = $req.GetResponse() }
+    catch {
+        # PS 5.1 wraps the WebException in a MethodInvocationException - dig it out.
+        $web = $_.Exception
+        while ($web -and $web -isnot [Net.WebException]) { $web = $web.InnerException }
+        if ($web -and $web.Response) { $resp = $web.Response }
+        else {
+            $ex = New-Object Exception("Could not reach the portal ($($_.Exception.Message)).")
+            $ex.Data['Status'] = 0
+            throw $ex
+        }
+    }
+    $status = [int]$resp.StatusCode
+    $reader = New-Object IO.StreamReader($resp.GetResponseStream(), [Text.Encoding]::UTF8)
+    $text = $reader.ReadToEnd(); $reader.Dispose(); $resp.Dispose()
+    $data = $null
+    if ($text) { try { $data = $text | ConvertFrom-Json } catch { } }
+    if ($status -ge 400) {
+        $msg = "The portal answered with error $status."
+        if ($data -and $data.error) { $msg = [string]$data.error }
+        $ex = New-Object Exception($msg)
+        $ex.Data['Status'] = $status
+        throw $ex
+    }
+    return $data
+}
+
+# Builds the body for POST /assets from the PC's details (Get-PcInfo) and the choices made.
+# $Pick: BranchCode, Kind ('laptop'|'desktop'), Tag, EmployeeMode ('keep'|'none'|'id'), EmployeeId.
+function New-PortalAssetBody {
+    param($Info, $Pick, [array]$Steps, [string]$ScriptVersion)
+    $body = [ordered]@{
+        serial_number   = $Info.SerialNumber
+        hardware_uuid   = $Info.HardwareUuid
+        asset_tag       = $Pick.Tag
+        branch_code     = $Pick.BranchCode
+        kind            = $Pick.Kind
+        make            = $Info.Make
+        model           = $Info.Model
+        cpu             = $Info.Processor
+        ram_gb          = $Info.RamGB
+        disk_gb         = $Info.DiskGB
+        windows_version = $Info.Windows
+        windows_build   = "$($Info.WindowsBuild)"
+        mac_addresses   = @($Info.MacAddresses | Select-Object -First 12)
+        windows_user    = $Info.WindowsUser
+        setup_date      = (Get-Date -Format 'yyyy-MM-ddTHH:mm:sszzz')
+        steps           = @($Steps)
+        script_version  = $ScriptVersion
+    }
+    # Leaving the key out means "do not touch who has it"; null means "nobody".
+    if ($Pick.EmployeeMode -eq 'none') { $body.assigned_employee_id = $null }
+    elseif ($Pick.EmployeeMode -eq 'id') { $body.assigned_employee_id = [int]$Pick.EmployeeId }
+    if ($global:EasyfinOutlookEmail) { $body.outlook_email = $global:EasyfinOutlookEmail }
+    return $body
+}
+
+# Sends the PC to the portal. If the portal cannot be reached (or the code ran out), the record is
+# kept on the PC and sent on the next run. Real refusals (wrong branch, name taken) are not kept -
+# repeating them would only fail again. Returns the portal's reply, or $null when it was kept for later.
+function Send-PcToPortal {
+    param([Parameter(Mandatory)]$Body)
+    try {
+        $r = Invoke-Portal -Method POST -Path '/assets' -Body $Body
+        Remove-Item $global:EasyfinPendingFile -Force -ErrorAction SilentlyContinue
+        Write-Ok ("Logged in the portal as {0} ({1})." -f $r.asset_tag, $r.result)
+        return $r
+    } catch {
+        $status = $_.Exception.Data['Status']
+        if ($status -eq 0 -or $status -eq 401 -or $status -eq 429 -or $status -ge 500) {
+            New-Item -ItemType Directory -Path (Split-Path $global:EasyfinPendingFile) -Force | Out-Null
+            ConvertTo-Json -InputObject $Body -Depth 6 | Set-Content -Path $global:EasyfinPendingFile -Encoding UTF8
+            Write-Warn "Not logged in the portal yet: $($_.Exception.Message)"
+            Write-Warn 'The details are saved on this PC and will be sent the next time setup runs here.'
+            return $null
+        }
+        throw
+    }
+}
+
+# Sends a record that could not be sent last time. Quiet when there is nothing waiting.
+function Send-PendingToPortal {
+    if (-not (Test-PortalLinked) -or -not (Test-Path $global:EasyfinPendingFile)) { return }
+    try {
+        $body = Get-Content $global:EasyfinPendingFile -Raw | ConvertFrom-Json
+        Write-Info 'A record from last time was not sent - sending it now.'
+        $r = Invoke-Portal -Method POST -Path '/assets' -Body $body
+        Remove-Item $global:EasyfinPendingFile -Force -ErrorAction SilentlyContinue
+        Write-Ok ("Logged in the portal as {0} ({1})." -f $r.asset_tag, $r.result)
+    } catch {
+        Write-Warn "Last time's record still could not be sent: $($_.Exception.Message)"
+    }
 }

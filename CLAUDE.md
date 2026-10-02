@@ -101,6 +101,8 @@ Never log the password or an unlocked value.
   the internet mark (USB stick, made locally, or Properties > Unblock) runs. Pasting `irm | iex` is never blocked.
 - PC names: `<GROUP>-<TOWN>-<L|D><nn>`; the list in `modules/pc-settings.ps1` is also read by `gui/start-gui.ps1`
   (regex on the `$Branches = [ordered]@{` block - keep that exact opening line).
-- Portal link-up: see PORTAL-PLAN.md. Portal_New sessions need Nico's approval typed in their own window.
+- Portal link-up: PORTAL-API.md is the as-built contract (from Portal_New); PORTAL-PLAN.md is the plan.
+  Portal calls live in lib/common.ps1 (Invoke-Portal etc.). The VPS http test exception in
+  Test-PortalAddressAllowed must be removed after DNS cutover. Portal_New sessions need Nico's approval typed in their own window.
 - Chrome ManagedBookmarks is a JSON string at `HKLM:\SOFTWARE\Policies\Google\Chrome\ManagedBookmarks`;
   folder name via `toplevel_name`. Verify at `chrome://policy`.

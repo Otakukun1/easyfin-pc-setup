@@ -1,8 +1,7 @@
 # Module: Register this PC - for PCs already in use. Installs and removes nothing: it records the PC's
 # details and who uses it, and (if wanted) gives it its new name. Safe to run again.
 # Recording needs no administrator rights; renaming does.
-# The details are saved on the PC now; sending them to the portal is added when the portal side is ready
-# (see PORTAL-PLAN.md).
+# When started from the portal, the window version logs it in the asset list after this step.
 
 if (-not $global:EasyfinSetupLoaded) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -35,5 +34,6 @@ else { Write-Skip "Not renaming. It is recorded as $tag; Windows keeps calling i
 
 Write-Step 'Recording this PC'
 [void](Save-PcInfo -AssetTag $tag -UsedBy $usedBy)
-Write-Info 'Not sent to the portal yet - that link is still being built.'
+if (Test-PortalLinked) { Write-Info 'It is logged in the portal when this run finishes.' }
+else { Write-Info 'Not logged in the portal - start from the portal (Assets > Set up a new PC) to log it.' }
 Write-Ok 'PC recorded.'

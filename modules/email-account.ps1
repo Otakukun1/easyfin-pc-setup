@@ -171,5 +171,6 @@ if (-not (Test-AccountExists $email)) {
     throw 'Outlook opened but the account did not appear. Check Outlook for a message, then run option 7 again.'
 }
 Write-Ok "$email added to Outlook."
+$global:EasyfinOutlookEmail = $email
 Write-Warn 'In Outlook now: when it asks for the password, type it, tick "Remember password", click OK.'
 Write-Info 'Then send a test email to yourself to check sending and receiving.'

@@ -55,7 +55,14 @@ $existing = Get-Item $iso -ErrorAction SilentlyContinue
 if ($existing -and ($existing.Length / 1MB) -ge $MinIsoSizeMB) {
     Write-Skip ('Already downloaded ({0:N0} MB) - reusing it.' -f ($existing.Length / 1MB))
 } else {
-    $link = Unlock-SetupSecret -Locked $LockedIsoLink -Check { param($v) $v -like 'https://*' }
+    # Linked to the portal: it hands over the link, no setup password needed. Otherwise (or if the
+    # portal has no link yet) fall back to the locked link + setup password.
+    $link = $null
+    if (Test-PortalLinked) {
+        try { $link = [string](Invoke-Portal -Path '/office-link').url; Write-Info 'Office download link received from the portal.' }
+        catch { Write-Warn "The portal did not give an Office link ($($_.Exception.Message)) - using the setup password instead." }
+    }
+    if (-not $link) { $link = Unlock-SetupSecret -Locked $LockedIsoLink -Check { param($v) $v -like 'https://*' } }
     if ($link -match '\?') { $link = "$link&download=1" } else { $link = "${link}?download=1" }
     Save-Download -Url $link -OutFile $iso -Label 'Downloading Office 2013'
     $sizeMB = (Get-Item $iso).Length / 1MB
