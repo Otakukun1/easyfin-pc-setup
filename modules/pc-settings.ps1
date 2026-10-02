@@ -152,7 +152,7 @@ if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyCont
 Set-PcProgress 5 'PC info'
 Write-Step 'Saving PC details'
 $cs   = Get-CimInstance Win32_ComputerSystem
-$bios = Get-CimInstance Win32_BIOS
+$identity = Get-PcIdentity
 $os   = Get-CimInstance Win32_OperatingSystem
 $cpu  = Get-CimInstance Win32_Processor | Select-Object -First 1
 $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
@@ -171,7 +171,8 @@ $info = [ordered]@{
     Type         = $type
     Make         = "$($cs.Manufacturer)".Trim()
     Model        = "$($cs.Model)".Trim()
-    SerialNumber = "$($bios.SerialNumber)".Trim()
+    SerialNumber = $identity.SerialNumber      # $null when the maker left a placeholder
+    HardwareUuid = $identity.HardwareUuid
     Processor    = "$($cpu.Name)".Trim()
     RamGB        = [math]::Round($ramBytes / 1GB)
     DiskGB       = [math]::Round($disk.Size / 1GB)

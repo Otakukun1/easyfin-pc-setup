@@ -257,3 +257,20 @@ function Unlock-SetupSecret {
     }
     throw 'Setup password was wrong 3 times.'
 }
+
+# ---------------------------------------------------------------- PC identity
+
+# The portal recognises a PC by serial number, falling back to the motherboard UUID.
+# No-name PCs report placeholder serials ("Default string", "To be filled by O.E.M." ...) that
+# are identical across machines - those are returned as $null so two PCs never look like one.
+function Get-PcIdentity {
+    $junk = '^(|0+|none|n/?a|null|unknown|default string|system serial number|serial number|not specified|not applicable|chassis serial number|to be filled by o\.?e\.?m\.?|123456789|xxxxxxx+)$'
+    $serial = "$((Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue).SerialNumber)".Trim()
+    if ($serial -match $junk) {
+        $serial = "$((Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).IdentifyingNumber)".Trim()
+    }
+    if ($serial -match $junk) { $serial = $null }
+    $uuid = "$((Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID)".Trim().ToUpper()
+    if ($uuid -match '^(|0{8}-0{4}-0{4}-0{4}-0{12}|F{8}-F{4}-F{4}-F{4}-F{12})$') { $uuid = $null }
+    [pscustomobject]@{ SerialNumber = $serial; HardwareUuid = $uuid }
+}
