@@ -174,3 +174,38 @@ Route names and field names are a proposal - change them to fit the portal, just
 
 Final routes, field names, example responses for each, the test address, how to get a test code,
 and anything above you changed and why.
+
+---
+
+## Addition (2 Oct 2026): bulk roll-out by staff themselves
+
+Nico cannot log in to every existing PC, so existing PCs are registered by the staff member who uses them.
+
+**Flow**
+1. Staff member logs in to the portal on their own work PC and opens "Register my PC".
+2. The page already knows who they are and their branch (from the login). They pick nothing, or at
+   most "this PC is shared" / laptop-desktop is detected by the script.
+3. Page shows a paste line (Copy button) with a personal one-time code, and plain picture steps:
+   press Windows key + R, type `powershell`, Enter, paste, Enter. **No administrator needed.**
+4. The script (new entry file `register.ps1`, no window, no admin) collects the PC details and POSTs
+   them. The portal links the PC to that employee and branch and gives it the next free tag.
+5. The staff member sees "Done - this PC is now MIL-WORC-L03" in the portal and in the script.
+
+**What differs from an RM setup code**
+- Any active employee may make one, for themselves only.
+- Scope: their own branch, their own employee id. The API ignores/rejects `assigned_employee_id`
+  and `branch_code` that differ from the code's owner; the portal assigns the tag (script sends none).
+- It can only create-or-update the one PC it runs on. No staff list, no Office link.
+- **No rename** - renaming needs administrator rights. The asset keeps `asset_tag` = new name and
+  a separate `windows_name` = what Windows calls it today; the portal shows "name does not match yet"
+  so Nico / the RM can rename those later (remotely or on a visit) with the admin script.
+- Shorter life is fine (30 minutes), single PC.
+
+**Portal view Nico needs:** per branch - staff count, PCs registered, who has not registered yet,
+PCs whose Windows name does not match the tag. That is his roll-out checklist.
+
+**API additions**
+- `GET /session` also returns `"kind": "setup" | "self"` and for `self` the owner's
+  `{ employee_id, name, branch_code, branch_name }`.
+- `POST /assets` with a `self` code: body carries hardware details, `windows_name`, `shared` (bool);
+  reply includes the assigned `asset_tag`.
