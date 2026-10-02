@@ -146,6 +146,8 @@ $xaml = @'
           <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,8,0,16">
             <StackPanel>
               <TextBlock x:Name="ExistingText" Foreground="#0F4C5C" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+              <TextBlock Text="Group" Foreground="#5A6B75"/>
+              <ComboBox x:Name="GroupBox" Margin="0,4,0,10" Padding="6,4"/>
               <TextBlock Text="Branch" Foreground="#5A6B75"/>
               <ComboBox x:Name="BranchBox" Margin="0,4,0,12" Padding="6,4"/>
               <StackPanel Orientation="Horizontal">
@@ -208,7 +210,7 @@ $xaml = @'
 
 $window = [Windows.Markup.XamlReader]::Parse($xaml)
 $ui = @{}
-foreach ($n in 'TitleText', 'PcLine', 'PortalLine', 'ExistingText', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName',
+foreach ($n in 'TitleText', 'PcLine', 'PortalLine', 'ExistingText', 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName',
                'StepsPanel', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'UsedByHint', 'PwPanel',
                'Activity', 'SubStatus', 'Bar', 'LogBox', 'RestartBtn', 'StartBtn', 'Hint', 'LeftPanel') { $ui[$n] = $window.FindName($n) }
 
@@ -227,27 +229,51 @@ if ($state.Linked) {
     $ui.PortalLine.Foreground = '#F2C94C'
 }
 
-# --- section 1: branch, laptop/desktop, number
+# --- section 1: group, branch, laptop/desktop, number
+# Group names come from the portal when it sends them, otherwise from the PC name start (MIL-... = Miloans).
+$GroupByHead = @{ MIL = 'Miloans'; QUA = 'Qualiloans'; BUD = 'Budget'; QCK = 'Quickloans'; TLG = 'The Loan Guy'; HO = 'Head Office'; WBDC = 'Debt Collection' }
+function Get-GroupName {
+    param([string]$Prefix, [string]$FromPortal)
+    if ($FromPortal) { return $FromPortal }
+    if ($Prefix) { $head = $Prefix.Split('-')[0]; if ($GroupByHead[$head]) { return $GroupByHead[$head] } }
+    return 'Other'
+}
+$state.BranchList = @()
 if ($state.Linked) {
     foreach ($b in $portalBranches) {
-        $item = New-Object Windows.Controls.ComboBoxItem
-        if ($b.pc_name_prefix) {
-            $item.Content = [string]$b.name
-            $item.Tag = [string]$b.pc_name_prefix
-            $state.CodeByPrefix[[string]$b.pc_name_prefix] = [string]$b.code
-        } else {
-            $item.Content = "$($b.name)  (no PC name set in the portal yet)"
-            $item.IsEnabled = $false
-        }
-        [void]$ui.BranchBox.Items.Add($item)
+        $prefix = [string]$b.pc_name_prefix
+        $group = ''
+        if ($b.PSObject.Properties['group']) { $group = [string]$b.group }
+        $state.BranchList += @{ Name = [string]$b.name; Prefix = $prefix; Group = (Get-GroupName $prefix $group) }
+        if ($prefix) { $state.CodeByPrefix[$prefix] = [string]$b.code }
     }
 } else {
-    foreach ($code in $Branches.Keys) {
-        $item = New-Object Windows.Controls.ComboBoxItem
-        $item.Content = $Branches[$code]
-        $item.Tag = $code
-        [void]$ui.BranchBox.Items.Add($item)
-    }
+    foreach ($code in $Branches.Keys) { $state.BranchList += @{ Name = $Branches[$code]; Prefix = $code; Group = (Get-GroupName $code '') } }
+}
+foreach ($g in @($state.BranchList | ForEach-Object { $_.Group } | Select-Object -Unique)) { [void]$ui.GroupBox.Items.Add($g) }
+
+function Update-BranchList {
+    $state.Loading = $true
+    try {
+        $ui.BranchBox.Items.Clear()
+        foreach ($b in $state.BranchList) {
+            if ($b.Group -ne $ui.GroupBox.SelectedItem) { continue }
+            $item = New-Object Windows.Controls.ComboBoxItem
+            if ($b.Prefix) { $item.Content = $b.Name; $item.Tag = $b.Prefix }
+            else { $item.Content = "$($b.Name)  (no PC name set in the portal yet)"; $item.IsEnabled = $false }
+            [void]$ui.BranchBox.Items.Add($item)
+        }
+    } finally { $state.Loading = $false }
+    Update-NamePreview
+}
+$ui.GroupBox.Add_SelectionChanged({ Update-BranchList })
+# Picks group + branch for a PC name start (used when the PC is already in the portal).
+function Select-BranchByPrefix {
+    param([string]$Prefix)
+    $b = $state.BranchList | Where-Object { $_.Prefix -eq $Prefix } | Select-Object -First 1
+    if (-not $b) { return }
+    $ui.GroupBox.SelectedItem = $b.Group
+    foreach ($it in $ui.BranchBox.Items) { if ($it.Tag -eq $Prefix) { $ui.BranchBox.SelectedItem = $it } }
 }
 $isLaptop = $false
 foreach ($c in @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)) {
@@ -280,7 +306,7 @@ function Update-NamePreview {
     elseif ($name) { $ui.NamePreview.Text = "New name: $name" }
     else { $ui.NamePreview.Text = 'Pick a branch and a number (1-99)' }
     $on = -not $ui.KeepName.IsChecked
-    $ui.BranchBox.IsEnabled = $on; $ui.KindL.IsEnabled = $on; $ui.KindD.IsEnabled = $on; $ui.NumBox.IsEnabled = $on
+    $ui.GroupBox.IsEnabled = $on; $ui.BranchBox.IsEnabled = $on; $ui.KindL.IsEnabled = $on; $ui.KindD.IsEnabled = $on; $ui.NumBox.IsEnabled = $on
 }
 
 # Shows a portal refusal as the portal worded it.
@@ -359,7 +385,9 @@ if ($state.Linked) {
         $ui.ExistingText.Visibility = 'Visible'
         $ui.ModeReg.IsChecked = $true
         $ui.KindL.IsChecked = ($ex.kind -eq 'laptop'); $ui.KindD.IsChecked = ($ex.kind -ne 'laptop')
-        foreach ($it in $ui.BranchBox.Items) { if ($it.Tag -and $state.CodeByPrefix[[string]$it.Tag] -eq $ex.branch_code) { $ui.BranchBox.SelectedItem = $it } }
+        $exPrefix = $null
+        foreach ($k in $state.CodeByPrefix.Keys) { if ($state.CodeByPrefix[$k] -eq $ex.branch_code) { $exPrefix = $k } }
+        if ($exPrefix) { Select-BranchByPrefix $exPrefix }
     } elseif ($state.ExistingNote) {
         $ui.ExistingText.Text = $state.ExistingNote
         $ui.ExistingText.Foreground = '#C0392B'
@@ -711,7 +739,7 @@ $ui.StartBtn.Add_Click({
     if ($state.Linked) { $sync.Portal = $global:EasyfinPortal; $sync.Code = $global:EasyfinCode }
     foreach ($s in $Steps) { $state.StepUi[$s.Key].Check.IsEnabled = $false; $state.StepUi[$s.Key].Status.Text = '' }
     foreach ($p in $picked) { Set-StepStatus $p.Key 'Waiting' }
-    foreach ($c in 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo') { $ui[$c].IsEnabled = $false }
+    foreach ($c in 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo') { $ui[$c].IsEnabled = $false }
     $ui.StartBtn.IsEnabled = $false
     $ui.StartBtn.Content = 'Working...'
     $ui.Hint.Text = 'You can walk away. It only stops when it needs a click from you. Do not close this window.'
@@ -765,9 +793,10 @@ if ($env:EASYFIN_GUI_SHOT) {
         $state.ShotTick++
         if ($state.ShotTick -eq 2) {
             if ($env:EASYFIN_GUI_MODE -eq 'register') { $ui.ModeReg.IsChecked = $true; $ui.UsedByBox.Text = 'Jane Smith' }
+            if (-not $ui.GroupBox.SelectedItem) { $ui.GroupBox.SelectedIndex = 0 }
             if (-not $ui.BranchBox.SelectedItem) {
                 $i = 0; foreach ($it in $ui.BranchBox.Items) { if ($it.IsEnabled -and -not $ui.BranchBox.SelectedItem) { $ui.BranchBox.SelectedIndex = $i }; $i++ }
-                if (-not $state.Linked) { $ui.BranchBox.SelectedIndex = 7; $ui.NumBox.Text = '2' }
+                if (-not $state.Linked) { $ui.GroupBox.SelectedItem = 'Miloans'; $ui.BranchBox.SelectedIndex = 7; $ui.NumBox.Text = '2' }
             }
             if ($state.Linked -and $ui.UsedByCombo.Items.Count -gt 2) { $ui.UsedByCombo.SelectedIndex = $ui.UsedByCombo.Items.Count - 1 }
             & $shot '1-start.png'
