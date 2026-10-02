@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-10-02 — Register-this-PC mode
+
+- New module `modules/register-pc.ps1` (menu option 8) and a second mode in the window version:
+  "PC already in use - just record it" - details + who uses it + optional rename, no installs.
+- Branch list, Read-PcName, Set-PcName, Save-PcInfo, Get-PcIdentity now live in `lib/common.ps1`.
+  pc-info.json gained AssetTag, UsedBy, HardwareUuid.
+- Tested on Nico's PC: record without rename (normal user), both window modes in demo. Rename path
+  and real admin run not yet tested. Nothing is sent to the portal yet.
+- Nico wants the bulk roll-out to be staff self-service (he cannot log in to every PC) - proposal sent
+  to the portal session: staff make a personal code in the portal, no admin needed, rename done later.
+
 ## 2026-10-02 — New PC naming rule, portal build plan sent
 
 - PC names are now `<GROUP>-<TOWN>-<L|D><nn>` (MIL-WORC-L01, BUD-WORC-D02), Nico's decision; replaces

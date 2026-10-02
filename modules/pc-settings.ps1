@@ -2,25 +2,10 @@
 # Safe to run again: anything already set is skipped. A new PC name needs a restart to take effect.
 
 # ============================ EDIT HERE ============================
-# PC name rule: <GROUP>-<TOWN>-<L|D><nn>, e.g. MIL-WORC-L01, BUD-WORC-D02 (Nico, 2 Oct 2026).
-# Key = the name prefix, value = what is shown in the list. Keep in step with PORTAL-PLAN.md -
-# the portal's own branch codes (CW, BUD ...) are different and are NOT used in PC names.
-$Branches = [ordered]@{
-    'MIL-WORC' = 'Miloans Worcester';     'MIL-CAPE' = 'Miloans Cape Town';   'MIL-HAML' = 'Miloans Hamlet'
-    'MIL-WELL' = 'Miloans Wellington';    'MIL-STRA' = 'Miloans Strand';      'MIL-SWES' = 'Miloans Somerset West'
-    'MIL-PAAR' = 'Miloans Paarl';         'MIL-TULB' = 'Miloans Tulbagh'
-    'QUA-DDOR' = 'Qualiloans De Doorns';  'QUA-VILL' = 'Qualiloans Villiersdorp'; 'QUA-CERE' = 'Qualiloans Ceres'
-    'QUA-BRED' = 'Qualiloans Bredasdorp'; 'QUA-CALE' = 'Qualiloans Caledon'
-    'BUD-WORC' = 'Budget Worcester';      'BUD-GANS' = 'Budget Gansbaai';     'BUD-WOLS' = 'Budget Wolseley'
-    'BUD-ROBE' = 'Budget Robertson';      'BUD-ONLI' = 'Budget Online';       'QCK-WORC' = 'Quickloans Worcester'
-    'TLG-HEID' = 'The Loan Guy Heidelberg'; 'TLG-SWEL' = 'The Loan Guy Swellendam'; 'TLG-GEOR' = 'The Loan Guy George'
-    'TLG-KNYS' = 'The Loan Guy Knysna';   'TLG-KILL' = 'The Loan Guy Killarney'; 'TLG-MAIT' = 'The Loan Guy Maitland'
-    'HO-WORC'  = 'Head Office Worcester'; 'WBDC-WORC' = 'Worcester Budget Debt Collection'
-}
+# The branch list for PC names lives in lib\common.ps1 (shared with Register PC and the window version).
 $TimeZoneId  = 'South Africa Standard Time'
 $Culture     = 'en-ZA'        # date format, currency (R), numbers
 $GeoId       = 209            # Windows' number for South Africa (location)
-$InfoFile    = 'C:\Temp\Setup\pc-info.json'
 # ===================================================================
 
 if (-not $global:EasyfinSetupLoaded) {
@@ -34,58 +19,6 @@ function Set-PcProgress { param([int]$Step, [string]$Text)
     Write-Progress -Id 1 -ParentId 0 -Activity 'PC settings' -Status ('Step {0} of {1}: {2}' -f $Step, $steps, $Text) -PercentComplete ([int]((($Step - 1) / $steps) * 100))
 }
 
-# Name Windows will use after the next restart (differs from $env:COMPUTERNAME while a rename is pending).
-function Get-PendingName {
-    (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName' -ErrorAction SilentlyContinue).ComputerName
-}
-
-# Builds the name step by step: pick the branch by number, laptop/desktop, then the PC number.
-# Returns '' to keep the current name.
-function Read-PcName {
-    $codes = @($Branches.Keys)
-    Write-Info 'Branches:'
-    for ($i = 0; $i -lt $codes.Count; $i += 2) {
-        $left = '{0,2}. {1,-10} {2,-26}' -f ($i + 1), $codes[$i], $Branches[$codes[$i]]
-        $right = ''
-        if ($i + 1 -lt $codes.Count) { $right = '{0,2}. {1,-10} {2}' -f ($i + 2), $codes[$i + 1], $Branches[$codes[$i + 1]] }
-        Write-Host "           $left $right" -ForegroundColor Gray
-    }
-    while ($true) {
-        $pick = (Read-Host '   Branch number (Enter = keep the current PC name)').Trim()
-        if (-not $pick) { return '' }
-        $num = 0
-        if ([int]::TryParse($pick, [ref]$num) -and $num -ge 1 -and $num -le $codes.Count) { $code = $codes[$num - 1]; break }
-        if ($Branches.Contains($pick.ToUpper())) { $code = $pick.ToUpper(); break }
-        Write-Fail "Pick a number from 1 to $($codes.Count)."
-    }
-    Write-Info "Branch: $code - $($Branches[$code])"
-
-    # This laptop/desktop guess comes from the PC itself (chassis type), so Enter is usually right.
-    $guess = 'D'
-    foreach ($c in @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)) {
-        if (@(8, 9, 10, 11, 14, 30, 31, 32) -contains [int]$c) { $guess = 'L' }
-    }
-    $guessWord = 'desktop'; if ($guess -eq 'L') { $guessWord = 'laptop' }
-    while ($true) {
-        $kind = (Read-Host "   L = laptop, D = desktop (Enter = $guess, this looks like a $guessWord)").Trim().ToUpper()
-        if (-not $kind) { $kind = $guess }
-        if ($kind -eq 'L' -or $kind -eq 'D') { break }
-        Write-Fail 'Type L or D.'
-    }
-
-    while ($true) {
-        $n = (Read-Host '   PC number at that branch, 1-99 (e.g. 2 for the second laptop)').Trim()
-        $num = 0
-        if ([int]::TryParse($n, [ref]$num) -and $num -ge 1 -and $num -le 99) { break }
-        Write-Fail 'Type a number from 1 to 99.'
-    }
-
-    $name = '{0}-{1}{2:00}' -f $code, $kind, $num
-    $ok = (Read-Host "   New name will be $name - OK? (Y/N)").Trim()
-    if ($ok -match '^[Yy]') { return $name }
-    Write-Info 'OK, let''s try again.'
-    return (Read-PcName)
-}
 # --- 1. restore point
 Set-PcProgress 1 'Restore point'
 Write-Step 'Restore point'
@@ -98,19 +31,10 @@ $pending = Get-PendingName
 Write-Info "Current name: $env:COMPUTERNAME"
 if ($pending -and $pending -ne $env:COMPUTERNAME) { Write-Info "Already renamed to $pending - waiting for a restart." }
 
-$newName = $global:EasyfinPcName      # filled in up front by "Run everything" (later)
+$newName = $global:EasyfinPcName      # filled in up front by the window version
 if (-not $newName) { $newName = Read-PcName }
-if (-not $newName) {
-    Write-Skip 'Keeping the current name.'
-} elseif ($newName -eq $env:COMPUTERNAME -or $newName -eq $pending) {
-    Write-Skip "PC is already named $newName."
-} else {
-    Rename-Computer -NewName $newName -Force -ErrorAction Stop -WarningAction SilentlyContinue
-    $global:EasyfinRestartNeeded = $true
-    Write-Ok "PC will be called $newName after the restart."
-}
-$finalName = Get-PendingName
-if (-not $finalName) { $finalName = $env:COMPUTERNAME }
+if (-not $newName) { Write-Skip 'Keeping the current name.' }
+else { Set-PcName $newName }
 
 # --- 3. time zone and clock
 Set-PcProgress 3 'Time zone and clock'
@@ -148,44 +72,10 @@ if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyCont
     Write-Info 'This Windows version cannot copy region to new logins - each login gets it when they run this.'
 }
 
-# --- 5. PC info file (for the portal's asset manager later)
-Set-PcProgress 5 'PC info'
+# --- 5. PC details file (for the portal's asset list)
+Set-PcProgress 5 'PC details'
 Write-Step 'Saving PC details'
-$cs   = Get-CimInstance Win32_ComputerSystem
-$identity = Get-PcIdentity
-$os   = Get-CimInstance Win32_OperatingSystem
-$cpu  = Get-CimInstance Win32_Processor | Select-Object -First 1
-$disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
-$ver  = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue).DisplayVersion
-# Chassis type, not "has a battery": desktops on a UPS report a battery too.
-$type = 'Desktop'
-$chassis = @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)
-foreach ($c in $chassis) { if (@(8, 9, 10, 11, 14, 30, 31, 32) -contains [int]$c) { $type = 'Laptop' } }
-$ramBytes = (Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue | Measure-Object -Property Capacity -Sum).Sum
-if (-not $ramBytes) { $ramBytes = $cs.TotalPhysicalMemory }
-$macs = @(Get-CimInstance Win32_NetworkAdapter -Filter 'PhysicalAdapter=True' -ErrorAction SilentlyContinue |
-    Where-Object { $_.MACAddress } | ForEach-Object { '{0} ({1})' -f $_.MACAddress, $_.NetConnectionID })
-
-$info = [ordered]@{
-    PcName       = $finalName
-    Type         = $type
-    Make         = "$($cs.Manufacturer)".Trim()
-    Model        = "$($cs.Model)".Trim()
-    SerialNumber = $identity.SerialNumber      # $null when the maker left a placeholder
-    HardwareUuid = $identity.HardwareUuid
-    Processor    = "$($cpu.Name)".Trim()
-    RamGB        = [math]::Round($ramBytes / 1GB)
-    DiskGB       = [math]::Round($disk.Size / 1GB)
-    Windows      = ("$($os.Caption) $ver").Trim()
-    WindowsBuild = $os.BuildNumber
-    MacAddresses = $macs
-    SetUpOn      = (Get-Date -Format 'yyyy-MM-dd HH:mm')
-    SetUpBy      = $env:USERNAME
-}
-New-Item -ItemType Directory -Path (Split-Path $InfoFile) -Force | Out-Null
-$info | ConvertTo-Json | Set-Content -Path $InfoFile -Encoding UTF8
-foreach ($k in 'PcName', 'Type', 'Make', 'Model', 'SerialNumber', 'RamGB', 'Windows') { Write-Info ('{0,-13} {1}' -f $k, $info[$k]) }
-Write-Ok "Saved to $InfoFile"
+[void](Save-PcInfo -AssetTag $newName -UsedBy $global:EasyfinUsedBy)
 
 Write-Progress -Id 1 -Activity 'PC settings' -Completed
 if ($global:EasyfinRestartNeeded) { Write-Warn 'Restart needed for the new PC name - you will be asked at the end.' }

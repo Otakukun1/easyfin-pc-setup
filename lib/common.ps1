@@ -274,3 +274,138 @@ function Get-PcIdentity {
     if ($uuid -match '^(|0{8}-0{4}-0{4}-0{4}-0{12}|F{8}-F{4}-F{4}-F{4}-F{12})$') { $uuid = $null }
     [pscustomobject]@{ SerialNumber = $serial; HardwareUuid = $uuid }
 }
+
+# ---------------------------------------------------------------- PC naming + PC details
+
+# ============================ EDIT HERE: branches ============================
+# PC name rule: <GROUP>-<TOWN>-<L|D><nn>, e.g. MIL-WORC-L01, BUD-WORC-D02 (Nico, 2 Oct 2026).
+# Key = the name prefix, value = what is shown in the list. Keep in step with PORTAL-PLAN.md -
+# the portal's own branch codes (CW, BUD ...) are different and are NOT used in PC names.
+$Branches = [ordered]@{
+    'MIL-WORC' = 'Miloans Worcester';     'MIL-CAPE' = 'Miloans Cape Town';   'MIL-HAML' = 'Miloans Hamlet'
+    'MIL-WELL' = 'Miloans Wellington';    'MIL-STRA' = 'Miloans Strand';      'MIL-SWES' = 'Miloans Somerset West'
+    'MIL-PAAR' = 'Miloans Paarl';         'MIL-TULB' = 'Miloans Tulbagh'
+    'QUA-DDOR' = 'Qualiloans De Doorns';  'QUA-VILL' = 'Qualiloans Villiersdorp'; 'QUA-CERE' = 'Qualiloans Ceres'
+    'QUA-BRED' = 'Qualiloans Bredasdorp'; 'QUA-CALE' = 'Qualiloans Caledon'
+    'BUD-WORC' = 'Budget Worcester';      'BUD-GANS' = 'Budget Gansbaai';     'BUD-WOLS' = 'Budget Wolseley'
+    'BUD-ROBE' = 'Budget Robertson';      'BUD-ONLI' = 'Budget Online';       'QCK-WORC' = 'Quickloans Worcester'
+    'TLG-HEID' = 'The Loan Guy Heidelberg'; 'TLG-SWEL' = 'The Loan Guy Swellendam'; 'TLG-GEOR' = 'The Loan Guy George'
+    'TLG-KNYS' = 'The Loan Guy Knysna';   'TLG-KILL' = 'The Loan Guy Killarney'; 'TLG-MAIT' = 'The Loan Guy Maitland'
+    'HO-WORC'  = 'Head Office Worcester'; 'WBDC-WORC' = 'Worcester Budget Debt Collection'
+}
+# =============================================================================
+
+# Name Windows will use after the next restart (differs from $env:COMPUTERNAME while a rename is pending).
+function Get-PendingName {
+    (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName' -ErrorAction SilentlyContinue).ComputerName
+}
+
+# Builds the name step by step: pick the branch by number, laptop/desktop, then the PC number.
+# Returns '' to keep the current name.
+function Read-PcName {
+    $codes = @($Branches.Keys)
+    Write-Info 'Branches:'
+    for ($i = 0; $i -lt $codes.Count; $i += 2) {
+        $left = '{0,2}. {1,-10} {2,-26}' -f ($i + 1), $codes[$i], $Branches[$codes[$i]]
+        $right = ''
+        if ($i + 1 -lt $codes.Count) { $right = '{0,2}. {1,-10} {2}' -f ($i + 2), $codes[$i + 1], $Branches[$codes[$i + 1]] }
+        Write-Host "           $left $right" -ForegroundColor Gray
+    }
+    while ($true) {
+        $pick = (Read-Host '   Branch number (Enter = keep the current PC name)').Trim()
+        if (-not $pick) { return '' }
+        $num = 0
+        if ([int]::TryParse($pick, [ref]$num) -and $num -ge 1 -and $num -le $codes.Count) { $code = $codes[$num - 1]; break }
+        if ($Branches.Contains($pick.ToUpper())) { $code = $pick.ToUpper(); break }
+        Write-Fail "Pick a number from 1 to $($codes.Count)."
+    }
+    Write-Info "Branch: $code - $($Branches[$code])"
+
+    # This laptop/desktop guess comes from the PC itself (chassis type), so Enter is usually right.
+    $guess = 'D'
+    foreach ($c in @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)) {
+        if (@(8, 9, 10, 11, 14, 30, 31, 32) -contains [int]$c) { $guess = 'L' }
+    }
+    $guessWord = 'desktop'; if ($guess -eq 'L') { $guessWord = 'laptop' }
+    while ($true) {
+        $kind = (Read-Host "   L = laptop, D = desktop (Enter = $guess, this looks like a $guessWord)").Trim().ToUpper()
+        if (-not $kind) { $kind = $guess }
+        if ($kind -eq 'L' -or $kind -eq 'D') { break }
+        Write-Fail 'Type L or D.'
+    }
+
+    while ($true) {
+        $n = (Read-Host '   PC number at that branch, 1-99 (e.g. 2 for the second laptop)').Trim()
+        $num = 0
+        if ([int]::TryParse($n, [ref]$num) -and $num -ge 1 -and $num -le 99) { break }
+        Write-Fail 'Type a number from 1 to 99.'
+    }
+
+    $name = '{0}-{1}{2:00}' -f $code, $kind, $num
+    $ok = (Read-Host "   New name will be $name - OK? (Y/N)").Trim()
+    if ($ok -match '^[Yy]') { return $name }
+    Write-Info 'OK, let''s try again.'
+    return (Read-PcName)
+}
+
+# Renames the PC unless it already has (or is already waiting for) that name.
+function Set-PcName {
+    param([Parameter(Mandatory)][string]$NewName)
+    $pending = Get-PendingName
+    if ($NewName -eq $env:COMPUTERNAME -or $NewName -eq $pending) {
+        Write-Skip "PC is already named $NewName."
+        return
+    }
+    Rename-Computer -NewName $NewName -Force -ErrorAction Stop -WarningAction SilentlyContinue
+    $global:EasyfinRestartNeeded = $true
+    Write-Ok "PC will be called $NewName after the restart."
+}
+
+# Collects this PC's details and saves them to C:\Temp\Setup\pc-info.json (later: also sent to the portal).
+# AssetTag is the name the PC has in the asset list; it can differ from the Windows name until a rename.
+# Needs no administrator rights - staff can run it on their own PC.
+function Save-PcInfo {
+    param([string]$AssetTag, [string]$UsedBy, [string]$Path = 'C:\Temp\Setup\pc-info.json')
+    $cs   = Get-CimInstance Win32_ComputerSystem
+    $identity = Get-PcIdentity
+    $os   = Get-CimInstance Win32_OperatingSystem
+    $cpu  = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
+    $ver  = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue).DisplayVersion
+    # Chassis type, not "has a battery": desktops on a UPS report a battery too.
+    $type = 'Desktop'
+    foreach ($c in @((Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue).ChassisTypes)) {
+        if (@(8, 9, 10, 11, 14, 30, 31, 32) -contains [int]$c) { $type = 'Laptop' }
+    }
+    $ramBytes = (Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue | Measure-Object -Property Capacity -Sum).Sum
+    if (-not $ramBytes) { $ramBytes = $cs.TotalPhysicalMemory }
+    $macs = @(Get-CimInstance Win32_NetworkAdapter -Filter 'PhysicalAdapter=True' -ErrorAction SilentlyContinue |
+        Where-Object { $_.MACAddress } | ForEach-Object { '{0} ({1})' -f $_.MACAddress, $_.NetConnectionID })
+    $name = Get-PendingName
+    if (-not $name) { $name = $env:COMPUTERNAME }
+    if (-not $AssetTag) { $AssetTag = $name }
+
+    $info = [ordered]@{
+        AssetTag     = $AssetTag
+        PcName       = $name
+        UsedBy       = $UsedBy
+        Type         = $type
+        Make         = "$($cs.Manufacturer)".Trim()
+        Model        = "$($cs.Model)".Trim()
+        SerialNumber = $identity.SerialNumber      # $null when the maker left a placeholder
+        HardwareUuid = $identity.HardwareUuid
+        Processor    = "$($cpu.Name)".Trim()
+        RamGB        = [math]::Round($ramBytes / 1GB)
+        DiskGB       = [math]::Round($disk.Size / 1GB)
+        Windows      = ("$($os.Caption) $ver").Trim()
+        WindowsBuild = $os.BuildNumber
+        MacAddresses = $macs
+        WindowsUser  = $env:USERNAME
+        RecordedOn   = (Get-Date -Format 'yyyy-MM-dd HH:mm')
+    }
+    New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
+    $info | ConvertTo-Json | Set-Content -Path $Path -Encoding UTF8
+    foreach ($k in 'AssetTag', 'PcName', 'UsedBy', 'Type', 'Make', 'Model', 'SerialNumber', 'RamGB', 'Windows') { Write-Info ('{0,-13} {1}' -f $k, $info[$k]) }
+    Write-Ok "Saved to $Path"
+    return $info
+}

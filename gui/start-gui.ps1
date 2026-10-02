@@ -15,13 +15,14 @@ $GuiVersion = '0.1 trial'
 $RepoBase   = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main'
 # Order here is the order they run in. On = ticked by default.
 $Steps = @(
-    @{ Key = 'pc';        Name = 'Name this PC, set time and region'; Info = 'Restore point, new PC name, South African time and formats'; File = 'modules/pc-settings.ps1';      On = $true }
-    @{ Key = 'clean';     Name = 'Remove junk';                       Info = 'McAfee, trial Office, games, personal Teams';               File = 'modules/cleanup.ps1';          On = $true }
-    @{ Key = 'apps';      Name = 'Install apps';                      Info = 'Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader'; File = 'modules/apps.ps1';             On = $true }
-    @{ Key = 'bookmarks'; Name = 'Add Easyfin bookmarks';             Info = 'Portal and other systems, in Chrome and Edge';              File = 'modules/chrome-bookmarks.ps1'; On = $true }
-    @{ Key = 'office';    Name = 'Install Office 2013';               Info = 'Needs the setup password';                                  File = 'modules/office.ps1';           On = $true }
-    @{ Key = 'updates';   Name = 'Install Windows updates';           Info = 'Slowest step - can take an hour';                           File = 'modules/windows-update.ps1';   On = $true }
-    @{ Key = 'email';     Name = 'Add staff email to Outlook';        Info = 'Only when signed in to Windows as the staff member';        File = 'modules/email-account.ps1';    On = $false }
+    @{ Key = 'pc';        Name = 'Name this PC, set time and region'; Info = 'Restore point, new PC name, South African time and formats'; File = 'modules/pc-settings.ps1';      On = $true;  Mode = 'new' }
+    @{ Key = 'clean';     Name = 'Remove junk';                       Info = 'McAfee, trial Office, games, personal Teams';               File = 'modules/cleanup.ps1';          On = $true;  Mode = 'new' }
+    @{ Key = 'apps';      Name = 'Install apps';                      Info = 'Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader'; File = 'modules/apps.ps1';             On = $true;  Mode = 'new' }
+    @{ Key = 'bookmarks'; Name = 'Add Easyfin bookmarks';             Info = 'Portal and other systems, in Chrome and Edge';              File = 'modules/chrome-bookmarks.ps1'; On = $true;  Mode = 'new' }
+    @{ Key = 'office';    Name = 'Install Office 2013';               Info = 'Needs the setup password';                                  File = 'modules/office.ps1';           On = $true;  Mode = 'new' }
+    @{ Key = 'updates';   Name = 'Install Windows updates';           Info = 'Slowest step - can take an hour';                           File = 'modules/windows-update.ps1';   On = $true;  Mode = 'new' }
+    @{ Key = 'register';  Name = 'Record this PC';                    Info = 'Saves its details and who uses it. Installs and removes nothing'; File = 'modules/register-pc.ps1';      On = $true;  Mode = 'register' }
+    @{ Key = 'email';     Name = 'Add staff email to Outlook';        Info = 'Only when signed in to Windows as the staff member';        File = 'modules/email-account.ps1';    On = $false; Mode = 'new' }
 )
 # ===================================================================
 
@@ -44,10 +45,10 @@ if (-not $isAdmin -and -not $Demo) {
     return
 }
 
-# Branch list comes from the PC settings module so there is only one list to maintain.
+# Branch list comes from lib/common.ps1 so there is only one list to maintain.
 $Branches = [ordered]@{}
 try {
-    $pcModule = Get-GuiFile 'modules/pc-settings.ps1'
+    $pcModule = Get-GuiFile 'lib/common.ps1'
     $m = [regex]::Match($pcModule, '(?s)\$Branches = \[ordered\]@\{.*?\r?\n\}')
     if ($m.Success) { Invoke-Expression $m.Value }
 } catch {
@@ -79,6 +80,23 @@ $xaml = @'
 
       <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="LeftPanel" Margin="0,0,6,0">
+          <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,16">
+            <StackPanel>
+              <RadioButton x:Name="ModeNew" GroupName="mode" IsChecked="True" Margin="0,2,0,2">
+                <StackPanel>
+                  <TextBlock Text="New PC - full setup" FontWeight="SemiBold"/>
+                  <TextBlock Text="Cleans it, installs everything, names it" Foreground="#5A6B75" FontSize="12"/>
+                </StackPanel>
+              </RadioButton>
+              <RadioButton x:Name="ModeReg" GroupName="mode" Margin="0,8,0,2">
+                <StackPanel>
+                  <TextBlock Text="PC already in use - just record it" FontWeight="SemiBold"/>
+                  <TextBlock Text="Takes a minute. Installs and removes nothing" Foreground="#5A6B75" FontSize="12"/>
+                </StackPanel>
+              </RadioButton>
+            </StackPanel>
+          </Border>
+
           <TextBlock Text="1. Which PC is this?" FontWeight="SemiBold" FontSize="16"/>
           <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,8,0,16">
             <StackPanel>
@@ -92,6 +110,10 @@ $xaml = @'
               </StackPanel>
               <TextBlock x:Name="NamePreview" Margin="0,12,0,8" FontSize="16" FontWeight="SemiBold" Foreground="#0F4C5C"/>
               <CheckBox x:Name="KeepName" Content="Keep the name it has now"/>
+              <CheckBox x:Name="RenameBox" Content="Rename the PC to this now (after a restart)" IsChecked="True" Visibility="Collapsed"/>
+              <TextBlock Text="Who uses this PC?" Foreground="#5A6B75" Margin="0,14,0,0"/>
+              <TextBox x:Name="UsedByBox" Margin="0,4,0,2" Padding="4,2"/>
+              <TextBlock Text="Leave empty if it is shared or nobody has it yet." Foreground="#8A979E" FontSize="12"/>
             </StackPanel>
           </Border>
 
@@ -100,9 +122,11 @@ $xaml = @'
             <StackPanel x:Name="StepsPanel"/>
           </Border>
 
-          <TextBlock Text="3. Setup password" FontWeight="SemiBold" FontSize="16"/>
-          <TextBlock Text="Only needed for Office." Foreground="#5A6B75" Margin="0,2,0,6"/>
-          <PasswordBox x:Name="PwBox" Padding="6,4"/>
+          <StackPanel x:Name="PwPanel">
+            <TextBlock Text="3. Setup password" FontWeight="SemiBold" FontSize="16"/>
+            <TextBlock Text="Only needed for Office." Foreground="#5A6B75" Margin="0,2,0,6"/>
+            <PasswordBox x:Name="PwBox" Padding="6,4"/>
+          </StackPanel>
         </StackPanel>
       </ScrollViewer>
 
@@ -137,11 +161,11 @@ $xaml = @'
 
 $window = [Windows.Markup.XamlReader]::Parse($xaml)
 $ui = @{}
-foreach ($n in 'TitleText', 'PcLine', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName', 'StepsPanel', 'PwBox',
+foreach ($n in 'TitleText', 'PcLine', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName', 'StepsPanel', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'PwPanel',
                'Activity', 'SubStatus', 'Bar', 'LogBox', 'RestartBtn', 'StartBtn', 'Hint', 'LeftPanel') { $ui[$n] = $window.FindName($n) }
 
 # Everything the event handlers share lives in this one object, so PowerShell scoping can't bite.
-$state = @{ Running = $false; Finished = $false; InfoIdx = 0; ErrIdx = 0; ProgIdx = 0; Progress = @{}; StepUi = @{}; Ps = $null; Sync = $null; Picked = @() }
+$state = @{ Mode = 'new'; Running = $false; Finished = $false; InfoIdx = 0; ErrIdx = 0; ProgIdx = 0; Progress = @{}; StepUi = @{}; Ps = $null; Sync = $null; Picked = @() }
 
 # --- header
 $cs = Get-CimInstance Win32_ComputerSystem
@@ -174,6 +198,7 @@ function Get-NewPcName {
 function Update-NamePreview {
     $name = Get-NewPcName
     if ($ui.KeepName.IsChecked) { $ui.NamePreview.Text = "Name stays: $name" }
+    elseif ($name -and $state.Mode -eq 'register') { $ui.NamePreview.Text = "Recorded as: $name" }
     elseif ($name) { $ui.NamePreview.Text = "New name: $name" }
     else { $ui.NamePreview.Text = 'Pick a branch and a number (1-99)' }
     $on = -not $ui.KeepName.IsChecked
@@ -206,8 +231,32 @@ foreach ($s in $Steps) {
 
     [void]$row.Children.Add($cb); [void]$row.Children.Add($status)
     [void]$ui.StepsPanel.Children.Add($row)
-    $state.StepUi[$s.Key] = @{ Check = $cb; Status = $status }
+    $state.StepUi[$s.Key] = @{ Check = $cb; Status = $status; Row = $row }
 }
+
+# --- the two modes: full setup of a new PC, or just recording a PC that is already in use
+function Update-Mode {
+    $mode = 'new'; if ($ui.ModeReg.IsChecked) { $mode = 'register' }
+    $state.Mode = $mode
+    foreach ($s in $Steps) {
+        $vis = 'Collapsed'; if ($s.Mode -eq $mode) { $vis = 'Visible' }
+        $state.StepUi[$s.Key].Row.Visibility = $vis
+    }
+    if ($mode -eq 'register') {
+        $ui.KeepName.IsChecked = $false
+        $ui.KeepName.Visibility = 'Collapsed'; $ui.RenameBox.Visibility = 'Visible'; $ui.PwPanel.Visibility = 'Collapsed'
+        $ui.StartBtn.Content = 'Record this PC'
+        $ui.Hint.Text = 'Renaming a PC that is in use can break shared printers or folders that other PCs reach by its old name. Untick "Rename" if unsure.'
+    } else {
+        $ui.KeepName.Visibility = 'Visible'; $ui.RenameBox.Visibility = 'Collapsed'; $ui.PwPanel.Visibility = 'Visible'
+        $ui.StartBtn.Content = 'Start setup'
+        $ui.Hint.Text = 'After you press Start you can walk away. It only stops when it needs a click from you.'
+    }
+    Update-NamePreview
+}
+$ui.ModeNew.Add_Checked({ Update-Mode })
+$ui.ModeReg.Add_Checked({ Update-Mode })
+Update-Mode
 
 # --- log box
 $doc = New-Object Windows.Documents.FlowDocument
@@ -278,6 +327,8 @@ try {
 
     # Answers given in the window up front, so the modules don't have to ask.
     if ($sync.PcName) { $global:EasyfinPcName = $sync.PcName }
+    $global:EasyfinUsedBy = [string]$sync.UsedBy
+    if ($sync.Mode -eq 'register') { $global:EasyfinRename = [bool]$sync.Rename }
     if ($sync.Password) {
         $sec = New-Object Security.SecureString
         foreach ($ch in ([string]$sync.Password).ToCharArray()) { $sec.AppendChar($ch) }
@@ -348,7 +399,7 @@ function Complete-Run {
         $ui.Activity.Text = 'Setup could not start'
         $ui.SubStatus.Text = $sync.Fatal
     } elseif ($failed.Count -eq 0) {
-        $ui.Activity.Text = "Finished - all $done steps done"
+        $ui.Activity.Text = "Finished - all $done steps done"; if ($done -eq 1) { $ui.Activity.Text = 'Finished - done' }
         $ui.SubStatus.Text = 'Everything worked.'
     } else {
         $ui.Activity.Text = "Finished - $done done, $($failed.Count) failed"
@@ -357,8 +408,8 @@ function Complete-Run {
     $todo = @()
     if ($sync.RestartNeeded) { $todo += 'restart this PC' }
     if ($state.Picked | Where-Object { $_.Key -eq 'updates' }) { $todo += 'after the restart, run Windows updates once more' }
-    if (-not ($state.Picked | Where-Object { $_.Key -eq 'email' })) { $todo += "add the staff member's email (sign in as them first)" }
-    $ui.Hint.Text = 'Still to do: ' + ($todo -join '; ') + '.'
+    if ($state.Mode -eq 'new' -and -not ($state.Picked | Where-Object { $_.Key -eq 'email' })) { $todo += "add the staff member's email (sign in as them first)" }
+    if ($todo.Count -gt 0) { $ui.Hint.Text = 'Still to do: ' + ($todo -join '; ') + '.' } else { $ui.Hint.Text = 'Nothing else to do on this PC.' }
     if ($sync.LogFile) { Add-LogLine ''; Add-LogLine "Full log: $($sync.LogFile)" 'DarkGray' }
     $ui.StartBtn.Content = 'Close'
     $ui.StartBtn.IsEnabled = $true
@@ -424,10 +475,10 @@ $ui.StartBtn.Add_Click({
     if ($state.Finished) { $window.Close(); return }
     if ($state.Running) { return }
 
-    $picked = @($Steps | Where-Object { $state.StepUi[$_.Key].Check.IsChecked })
+    $picked = @($Steps | Where-Object { $_.Mode -eq $state.Mode -and $state.StepUi[$_.Key].Check.IsChecked })
     if ($picked.Count -eq 0) { [void][Windows.MessageBox]::Show($window, 'Tick at least one thing to do.', 'Easyfin PC Setup', 'OK', 'Information'); return }
     $pcName = ''
-    if ($picked | Where-Object { $_.Key -eq 'pc' }) {
+    if ($picked | Where-Object { $_.Key -eq 'pc' -or $_.Key -eq 'register' }) {
         $pcName = Get-NewPcName
         if (-not $pcName) { [void][Windows.MessageBox]::Show($window, 'Pick a branch and a PC number (1-99), or tick "Keep the name it has now".', 'Easyfin PC Setup', 'OK', 'Information'); return }
     }
@@ -437,6 +488,7 @@ $ui.StartBtn.Add_Click({
 
     $sync = [hashtable]::Synchronized(@{
         Picked = $picked; PcName = $pcName; Password = $ui.PwBox.Password; Demo = $Demo
+        Mode = $state.Mode; UsedBy = $ui.UsedByBox.Text.Trim(); Rename = [bool]$ui.RenameBox.IsChecked
         LocalRoot = $LocalRoot; RepoBase = $RepoBase
         Status = [hashtable]::Synchronized(@{}); Detail = [hashtable]::Synchronized(@{})
         Prompt = $null; Answer = $null; Answered = $false; Done = $false; Fatal = $null
@@ -444,7 +496,7 @@ $ui.StartBtn.Add_Click({
     })
     foreach ($s in $Steps) { $state.StepUi[$s.Key].Check.IsEnabled = $false; $state.StepUi[$s.Key].Status.Text = '' }
     foreach ($p in $picked) { Set-StepStatus $p.Key 'Waiting' }
-    foreach ($c in 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox') { $ui[$c].IsEnabled = $false }
+    foreach ($c in 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox') { $ui[$c].IsEnabled = $false }
     $ui.StartBtn.IsEnabled = $false
     $ui.StartBtn.Content = 'Working...'
     $ui.Hint.Text = 'You can walk away. It only stops when it needs a click from you. Do not close this window.'
@@ -497,7 +549,8 @@ if ($env:EASYFIN_GUI_SHOT) {
     $auto.Add_Tick({
         $state.ShotTick++
         if ($state.ShotTick -eq 2) {
-            $ui.BranchBox.SelectedIndex = 24; $ui.NumBox.Text = '2'
+            if ($env:EASYFIN_GUI_MODE -eq 'register') { $ui.ModeReg.IsChecked = $true; $ui.UsedByBox.Text = 'Jane Smith' }
+            $ui.BranchBox.SelectedIndex = 7; $ui.NumBox.Text = '2'
             & $shot '1-start.png'
             $ui.StartBtn.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
         }
