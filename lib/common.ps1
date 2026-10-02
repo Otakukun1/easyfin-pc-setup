@@ -506,6 +506,8 @@ function New-PortalAssetBody {
         windows_build   = "$($Info.WindowsBuild)"
         mac_addresses   = @($Info.MacAddresses | Select-Object -First 12)
         windows_user    = $Info.WindowsUser
+        # Name after any pending rename (PcName); the portal's roll-out page flags it when it differs from the tag.
+        windows_name    = $Info.PcName
         setup_date      = (Get-Date -Format 'yyyy-MM-ddTHH:mm:sszzz')
         steps           = @($Steps)
         script_version  = $ScriptVersion

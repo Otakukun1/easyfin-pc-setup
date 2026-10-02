@@ -1,7 +1,7 @@
 # Portal API for PC setup — as built
 
 Written for: the Easyfin PC Setup session. From: Portal_New (portal-new-57), 2 Oct 2026.
-Portal commit `6ad01224`. On the VPS since 2 Oct 2026. Source of truth:
+Portal commit `289fb9e4` (every-branch reach + `group`). On the VPS since 2 Oct 2026. Source of truth:
 `Portal_New/app/Http/Controllers/Api/PcSetupApiController.php` and
 `Portal_New/tests/Feature/PcSetupApiTest.php`.
 
@@ -25,8 +25,9 @@ Portal commit `6ad01224`. On the VPS since 2 Oct 2026. Source of truth:
   works for any number of PCs.
 - Throttle: 90 calls a minute per IP (429 above that).
 - **Every refusal is `{"error": "one plain sentence"}`** — show it as-is.
-- A code answers as the person who made it. It only sees and writes that
-  person's branches.
+- A code answers as the person who made it (recorded on every change). It
+  reaches **every active branch** for PC setup (Nico, 2 Oct 2026), whoever made it.
+  Closed branches are refused, and a PC listed at a closed branch gives 409.
 
 | Status | Meaning |
 |---|---|
@@ -51,18 +52,18 @@ Portal commit `6ad01224`. On the VPS since 2 Oct 2026. Source of truth:
 No `preset` yet — that idea is parked with Nico.
 
 ### GET /branches
-Active branches the maker may see, by name. `pc_name_prefix` can be null.
+Every active branch, by name. `group` and `pc_name_prefix` can be null
+(Head Office and WBDC have no group).
 ```json
-[ { "code": "CW", "name": "Miloans CW", "pc_name_prefix": "MIL-WORC" } ]
+[ { "code": "CW", "name": "Miloans CW", "group": "Miloans", "pc_name_prefix": "MIL-WORC" } ]
 ```
-An RM will not see Head Office (HO) or WBDC — they belong to no RM group.
 
 ### GET /branches/{code}/staff
-Active staff of that branch. `{code}` is `branches.code` (e.g. `CW`).
+Active staff of that branch. `{code}` is `branches.code` (e.g. `CW`). Any active branch.
 ```json
 [ { "id": 12, "name": "Jane Smith" } ]
 ```
-403 if the branch is not the maker's or is closed.
+403 if the branch is closed or unknown.
 
 ### GET /branches/{code}/next-tag?kind=laptop|desktop
 ```json
@@ -83,8 +84,7 @@ Either or both. Matched on serial first, else uuid.
 { "asset_tag": "MIL-WORC-L01", "branch_code": "CW", "kind": "laptop",
   "assigned_to": { "id": 12, "name": "Jane Smith" }, "status": "available" }
 ```
-`assigned_to` is null when nobody has it. 404 = not registered. 403 = registered
-somewhere the maker does not look after.
+`assigned_to` is null when nobody has it. 404 = not registered. 409 = listed at a closed branch.
 
 ### POST /assets
 Create-or-update, safe to repeat.
@@ -103,6 +103,7 @@ Create-or-update, safe to repeat.
 | `windows_version`, `windows_build` | strings |
 | `mac_addresses` | array of strings (≤12), e.g. `"A4:BB:6D:1C:90:2E (Wi-Fi)"` |
 | `windows_user`, `outlook_email` | strings |
+| `windows_name` | string ≤63 — what Windows calls the PC now (after any rename). The portal's PC roll-out page flags it when it differs from the tag |
 | `setup_date` | any date-time string; now if left out |
 | `steps` | array of `{ "name": string ≤60, "ok": bool, "note": string ≤300 or absent }` |
 | `script_version` | string ≤40 |
@@ -139,5 +140,4 @@ It never sets status, condition, price or supplier, and never deletes.
   until Nico switches it on and sets "PC names start with" to `MIL-TULB` under
   Setup > Branches. The script never needs the code for names — use `pc_name_prefix`.
 - The asset register on the VPS is empty, so the first PC at each branch is 01.
-- Parked with Nico, not built: presets in `/session`, the per-branch roll-out
-  view, "Register my PC" self codes.
+- Built: Assets > PC roll-out (portal page, no API). Not built, by Nico's choice: presets in `/session`, "Register my PC" self codes.
