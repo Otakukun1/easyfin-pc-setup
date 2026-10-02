@@ -428,14 +428,13 @@ $global:EasyfinPendingFile = 'C:\Temp\Setup\pending-portal.json'
 function Test-PortalLinked { return [bool]($global:EasyfinPortal -and $global:EasyfinCode) }
 
 # The setup code travels with every call, so the address must be https. Two exceptions, both for
-# testing only: this PC itself (127.0.0.1), and the VPS's bare address before DNS cutover - and that
-# one only when the person running it adds EASYFIN_ALLOW_HTTP_TEST=1 to the line themselves.
-# Remove the VPS exception once the portal has its https name on the VPS.
+# testing only: this PC itself (127.0.0.1), and the VPS's bare address before DNS cutover.
 function Test-PortalAddressAllowed {
     param([string]$Address)
     if ($Address -match '^https://') { return $true }
     if ($Address -match '^http://127\.0\.0\.1(:\d+)?$') { return $true }
-    if ($Address -eq 'http://41.222.36.148' -and $env:EASYFIN_ALLOW_HTTP_TEST -eq '1') { return $true }
+    # Nico's call 2 Oct 2026: allow the VPS's bare address until DNS cutover. REMOVE after cutover.
+    if ($Address -eq 'http://41.222.36.148') { return $true }
     return $false
 }
 
