@@ -58,7 +58,8 @@ if ($existing -and ($existing.Length / 1MB) -ge $MinIsoSizeMB) {
     # Linked to the portal: it hands over the link, no setup password needed. Otherwise (or if the
     # portal has no link yet) fall back to the locked link + setup password.
     $link = $null
-    if (Test-PortalLinked) {
+    # Not over plain http (VPS before cutover): the link would travel readable. Use the password then.
+    if ((Test-PortalLinked) -and $global:EasyfinPortal -like 'https://*') {
         try { $link = [string](Invoke-Portal -Path '/office-link').url; Write-Info 'Office download link received from the portal.' }
         catch { Write-Warn "The portal did not give an Office link ($($_.Exception.Message)) - using the setup password instead." }
     }

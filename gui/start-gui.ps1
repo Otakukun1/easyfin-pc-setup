@@ -68,7 +68,6 @@ if (Test-PortalLinked) {
     $why = $null
     if (-not (Test-PortalAddressAllowed $global:EasyfinPortal)) {
         $why = "The portal address $global:EasyfinPortal is not a secure (https) address, so the setup code is not sent to it."
-        if ($global:EasyfinPortal -eq 'http://41.222.36.148') { $why += "`n`nTesting on the new server before it has its https name? Put  `$env:EASYFIN_ALLOW_HTTP_TEST=1;  at the very start of the line." }
     } else {
         try { $state.Session = Invoke-Portal -Path '/session' } catch { $why = $_.Exception.Message }
     }
@@ -352,7 +351,7 @@ if ($state.Linked) {
     $ui.KeepName.Visibility = 'Collapsed'
     $ui.UsedByBox.Visibility = 'Collapsed'; $ui.UsedByCombo.Visibility = 'Visible'
     $ui.UsedByHint.Text = 'Pick from the branch''s staff. The portal keeps a history of who had it.'
-    $ui.PwPanel.Visibility = 'Collapsed'
+    if ($global:EasyfinPortal -like 'https://*') { $ui.PwPanel.Visibility = 'Collapsed' }
     $ex = $state.Existing
     if ($ex) {
         $who = 'nobody'; if ($ex.assigned_to) { $who = $ex.assigned_to.name }
@@ -378,7 +377,7 @@ foreach ($s in $Steps) {
     [void]$row.ColumnDefinitions.Add($c1); [void]$row.ColumnDefinitions.Add($c2)
 
     $info = $s.Info
-    if ($s.Key -eq 'office' -and $state.Linked) { $info = 'Download link comes from the portal' }
+    if ($s.Key -eq 'office' -and $state.Linked -and $global:EasyfinPortal -like 'https://*') { $info = 'Download link comes from the portal' }
     $text = New-Object Windows.Controls.StackPanel
     $t1 = New-Object Windows.Controls.TextBlock; $t1.Text = $s.Name; $t1.FontWeight = 'SemiBold'
     $t2 = New-Object Windows.Controls.TextBlock; $t2.Text = $info; $t2.Foreground = '#5A6B75'; $t2.FontSize = 12; $t2.TextWrapping = 'Wrap'
@@ -409,7 +408,8 @@ function Update-Mode {
         $ui.Hint.Text = 'Renaming a PC that is in use can break shared printers or folders that other PCs reach by its old name. Untick "Rename" if unsure.'
     } else {
         $ui.RenameBox.Visibility = 'Collapsed'
-        if (-not $state.Linked) { $ui.KeepName.Visibility = 'Visible'; $ui.PwPanel.Visibility = 'Visible' }
+        if (-not $state.Linked) { $ui.KeepName.Visibility = 'Visible' }
+        if (-not ($state.Linked -and $global:EasyfinPortal -like 'https://*')) { $ui.PwPanel.Visibility = 'Visible' }
         $ui.StartBtn.Content = 'Start setup'
         $ui.Hint.Text = 'After you press Start you can walk away. It only stops when it needs a click from you.'
     }
@@ -682,7 +682,7 @@ $ui.StartBtn.Add_Click({
         $pcName = Get-NewPcName
         if (-not $pcName) { [void][Windows.MessageBox]::Show($window, 'Pick a branch and a PC number (1-99).', 'Easyfin PC Setup', 'OK', 'Information'); return }
     }
-    if (($picked | Where-Object { $_.Key -eq 'office' }) -and -not $state.Linked -and -not $ui.PwBox.Password -and -not $Demo) {
+    if (($picked | Where-Object { $_.Key -eq 'office' }) -and -not ($state.Linked -and $global:EasyfinPortal -like 'https://*') -and -not $ui.PwBox.Password -and -not $Demo) {
         [void][Windows.MessageBox]::Show($window, 'Type the setup password - Office needs it.', 'Easyfin PC Setup', 'OK', 'Information'); return
     }
 
