@@ -152,7 +152,7 @@ if ($Demo) { $ui.TitleText.Text = 'Easyfin PC Setup  -  DEMO (nothing on this PC
 # --- section 1
 foreach ($code in $Branches.Keys) {
     $item = New-Object Windows.Controls.ComboBoxItem
-    $item.Content = ('{0}  ({1})' -f $Branches[$code], $code)
+    $item.Content = $Branches[$code]
     $item.Tag = $code
     [void]$ui.BranchBox.Items.Add($item)
 }
@@ -169,7 +169,7 @@ function Get-NewPcName {
     $num = 0
     if (-not $sel -or -not [int]::TryParse($ui.NumBox.Text.Trim(), [ref]$num) -or $num -lt 1 -or $num -gt 99) { return '' }
     $kind = 'D'; if ($ui.KindL.IsChecked) { $kind = 'L' }
-    return ('EF-{0}-{1}{2:00}' -f $sel.Tag, $kind, $num)
+    return ('{0}-{1}{2:00}' -f $sel.Tag, $kind, $num)
 }
 function Update-NamePreview {
     $name = Get-NewPcName

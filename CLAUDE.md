@@ -97,5 +97,10 @@ Never log the password or an unlocked value.
 - MCPR.exe (McAfee removal) unpacks to %TEMP%, launches the real tool and exits at once — wait on that process.
 - ODT `<Remove All>` returns before Click-to-Run finishes; poll `ClickToRun\Configuration\ProductReleaseIds`.
 - winget exit 3010 on Acrobat = installed, restart needed (winget prints it in red as "failed").
+- Smart App Control (Win11) blocks downloaded .cmd/.ps1 files outright (no "run anyway"); a file without
+  the internet mark (USB stick, made locally, or Properties > Unblock) runs. Pasting `irm | iex` is never blocked.
+- PC names: `<GROUP>-<TOWN>-<L|D><nn>`; the list in `modules/pc-settings.ps1` is also read by `gui/start-gui.ps1`
+  (regex on the `$Branches = [ordered]@{` block - keep that exact opening line).
+- Portal link-up: see PORTAL-PLAN.md. Portal_New sessions need Nico's approval typed in their own window.
 - Chrome ManagedBookmarks is a JSON string at `HKLM:\SOFTWARE\Policies\Google\Chrome\ManagedBookmarks`;
   folder name via `toplevel_name`. Verify at `chrome://policy`.

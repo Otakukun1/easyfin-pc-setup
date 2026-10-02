@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-10-02 — New PC naming rule, portal build plan sent
+
+- PC names are now `<GROUP>-<TOWN>-<L|D><nn>` (MIL-WORC-L01, BUD-WORC-D02), Nico's decision; replaces
+  EF-<portal code>-... . Portal branch codes are no longer used in names. Menu and window version updated.
+- `PORTAL-PLAN.md` written and sent to the Portal_New session: "Set up a new PC" page, one-time codes
+  (all RMs, scoped to their branches), asset API that links PC + staff member, serial/UUID identity,
+  assignment history. Script side waits for the portal's final routes.
+- Starter file `starter/Easyfin-PC-Setup.cmd` (GitHub release) - blocked by Smart App Control when
+  downloaded; works from a USB stick or after Properties > Unblock. Paste line stays the main way.
+
 ## 2026-10-01 — Window version (trial) + portal link-up plan
 
 - `gui/start-gui.ps1`: guided window (branch drop-down, tick boxes, live Done/Failed per step, progress

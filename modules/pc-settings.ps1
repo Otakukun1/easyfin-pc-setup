@@ -2,20 +2,20 @@
 # Safe to run again: anything already set is skipped. A new PC name needs a restart to take effect.
 
 # ============================ EDIT HERE ============================
-# Branch codes for the PC name rule EF-<code>-<L|D><nn>, e.g. EF-PRL-L01, EF-WBDC-D01.
-# Same codes as the portal's branch list (Portal_New BranchSeeder.php, 1 Oct 2026) so the
-# asset manager can match PCs to branches. Codes are 2-4 letters. Empty list = any 2-4 letters.
+# PC name rule: <GROUP>-<TOWN>-<L|D><nn>, e.g. MIL-WORC-L01, BUD-WORC-D02 (Nico, 2 Oct 2026).
+# Key = the name prefix, value = what is shown in the list. Keep in step with PORTAL-PLAN.md -
+# the portal's own branch codes (CW, BUD ...) are different and are NOT used in PC names.
 $Branches = [ordered]@{
-    'CW'  = 'Miloans CW';      'MCT' = 'Miloans CT';     'HAM' = 'Hamlet';        'WEL' = 'Wellington'
-    'STR' = 'Strand';          'SW'  = 'Somerset West';  'PRL' = 'Paarl'
-    'DD'  = 'De Doorns';       'VIL' = 'Villiersdorp';   'CER' = 'Ceres';         'BRE' = 'Bredasdorp'
-    'CAL' = 'Caledon'
-    'BUD' = 'Budget CW (Worcester)'; 'GAN' = 'Gansbaai'; 'WOL' = 'Wolseley';      'ROB' = 'Robertson'
-    'QCW' = 'Quickloans CW (Worcester)'; 'ONL' = 'Budget Online'
-    'HEI' = 'Heidelberg';      'SWE' = 'Swellendam';     'GEO' = 'George';        'KNY' = 'Knysna'
-    'KIL' = 'Killarney';       'MAI' = 'Maitland'
-    'TUL' = 'Tulbagh'   # not in the portal's branch list yet (1 Oct 2026)
-    'HO'  = 'Head Office Worcester'; 'WBDC' = 'Worcester Budget Debt Collection'
+    'MIL-WORC' = 'Miloans Worcester';     'MIL-CAPE' = 'Miloans Cape Town';   'MIL-HAML' = 'Miloans Hamlet'
+    'MIL-WELL' = 'Miloans Wellington';    'MIL-STRA' = 'Miloans Strand';      'MIL-SWES' = 'Miloans Somerset West'
+    'MIL-PAAR' = 'Miloans Paarl';         'MIL-TULB' = 'Miloans Tulbagh'
+    'QUA-DDOR' = 'Qualiloans De Doorns';  'QUA-VILL' = 'Qualiloans Villiersdorp'; 'QUA-CERE' = 'Qualiloans Ceres'
+    'QUA-BRED' = 'Qualiloans Bredasdorp'; 'QUA-CALE' = 'Qualiloans Caledon'
+    'BUD-WORC' = 'Budget Worcester';      'BUD-GANS' = 'Budget Gansbaai';     'BUD-WOLS' = 'Budget Wolseley'
+    'BUD-ROBE' = 'Budget Robertson';      'BUD-ONLI' = 'Budget Online';       'QCK-WORC' = 'Quickloans Worcester'
+    'TLG-HEID' = 'The Loan Guy Heidelberg'; 'TLG-SWEL' = 'The Loan Guy Swellendam'; 'TLG-GEOR' = 'The Loan Guy George'
+    'TLG-KNYS' = 'The Loan Guy Knysna';   'TLG-KILL' = 'The Loan Guy Killarney'; 'TLG-MAIT' = 'The Loan Guy Maitland'
+    'HO-WORC'  = 'Head Office Worcester'; 'WBDC-WORC' = 'Worcester Budget Debt Collection'
 }
 $TimeZoneId  = 'South Africa Standard Time'
 $Culture     = 'en-ZA'        # date format, currency (R), numbers
@@ -45,9 +45,9 @@ function Read-PcName {
     $codes = @($Branches.Keys)
     Write-Info 'Branches:'
     for ($i = 0; $i -lt $codes.Count; $i += 2) {
-        $left = '{0,2}. {1,-5} {2,-26}' -f ($i + 1), $codes[$i], $Branches[$codes[$i]]
+        $left = '{0,2}. {1,-10} {2,-26}' -f ($i + 1), $codes[$i], $Branches[$codes[$i]]
         $right = ''
-        if ($i + 1 -lt $codes.Count) { $right = '{0,2}. {1,-5} {2}' -f ($i + 2), $codes[$i + 1], $Branches[$codes[$i + 1]] }
+        if ($i + 1 -lt $codes.Count) { $right = '{0,2}. {1,-10} {2}' -f ($i + 2), $codes[$i + 1], $Branches[$codes[$i + 1]] }
         Write-Host "           $left $right" -ForegroundColor Gray
     }
     while ($true) {
@@ -80,7 +80,7 @@ function Read-PcName {
         Write-Fail 'Type a number from 1 to 99.'
     }
 
-    $name = 'EF-{0}-{1}{2:00}' -f $code, $kind, $num
+    $name = '{0}-{1}{2:00}' -f $code, $kind, $num
     $ok = (Read-Host "   New name will be $name - OK? (Y/N)").Trim()
     if ($ok -match '^[Yy]') { return $name }
     Write-Info 'OK, let''s try again.'
