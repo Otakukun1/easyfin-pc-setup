@@ -41,18 +41,24 @@ function Test-LockedFolder {
 }
 
 # Makes $Path admin-only to change: a brand-new ACL (Administrators + SYSTEM full control, Users read),
-# owner Administrators. Locks FIRST, then - only if it was not already locked - deletes every file and
-# link at the top level (a normal login may have planted files or hard links; deleting removes the link,
+# owner Administrators. Locks FIRST, then - unless this setup already emptied it - deletes every file and
+# link at the top level (a normal login may have planted files or hard links; deleting removes the name,
 # never what it points to). Real sub-folders are left alone and never used: emptying one could be
-# redirected while it runs. "Clean" is proven by a marker file written only after every delete worked;
-# a lock without the marker (a clean-up that failed half way) is cleaned again next time.
+# redirected while it runs. Nothing is ever done to a planted entry except deleting it: changing its
+# owner, rules or attributes could act on another file through a hard link. If a delete fails it stops
+# (fail closed) and the folder is not trusted until it is emptied by hand.
+# "Already emptied" is recorded in HKLM (normal logins cannot write there), never in the folder itself.
+$global:EasyfinLockKey = 'HKLM:\SOFTWARE\Easyfin\PcSetup\LockedFolders'
 function Initialize-LockedFolder {
     param([Parameter(Mandatory)][string]$Path)
     if (Test-IsLink $Path) { throw "$Path is a link to another place - not used." }
-    $marker = Join-Path $Path '.locked-clean'
     $wasClean = $false
     if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    else { $wasClean = (Test-LockedFolder $Path) -and (Test-Path -LiteralPath $marker) -and -not (Test-IsLink $marker) -and (Test-AdminOwned $marker) }
+    else {
+        $done = (Get-ItemProperty -Path $global:EasyfinLockKey -Name $Path -ErrorAction SilentlyContinue).$Path
+        # Must still be locked too: a folder deleted and made again by someone else fails this.
+        $wasClean = ($done -eq 1) -and (Test-LockedFolder $Path)
+    }
     $sid = { param($s) New-Object Security.Principal.SecurityIdentifier($s) }
     $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
     $none = [Security.AccessControl.PropagationFlags]::None
@@ -65,22 +71,18 @@ function Initialize-LockedFolder {
     Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
     if (-not (Test-LockedFolder $Path)) { throw "Could not lock the folder $Path." }
     if ($wasClean) { return }
+    New-Item -Path $global:EasyfinLockKey -Force | Out-Null
+    Remove-ItemProperty -Path $global:EasyfinLockKey -Name $Path -ErrorAction SilentlyContinue
     foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop)) {
         $isLink = [bool]($c.Attributes -band [IO.FileAttributes]::ReparsePoint)
         if ($c.PSIsContainer -and -not $isLink) { continue }
         try {
-            if (-not $isLink) { [IO.File]::SetAttributes($c.FullName, [IO.FileAttributes]::Normal) }
             if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
         } catch {
-            # A planted file can carry its own "no delete" rules: take it over as administrators, then retry.
-            & icacls.exe $c.FullName /setowner '*S-1-5-32-544' /L /C | Out-Null
-            & icacls.exe $c.FullName /reset /L /C | Out-Null
-            if (-not $isLink) { [IO.File]::SetAttributes($c.FullName, [IO.FileAttributes]::Normal) }
-            if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
+            throw "Could not empty $Path ($($c.Name) would not delete). Delete that file by hand, then run this again."
         }
     }
-    # Reached only when every delete above worked (any failure throws, so no marker and next run retries).
-    Set-Content -LiteralPath $marker -Value 'Emptied and locked by Easyfin PC Setup.' -Encoding ASCII
+    New-ItemProperty -Path $global:EasyfinLockKey -Name $Path -Value 1 -PropertyType DWord -Force | Out-Null
 }
 
 # ---------------------------------------------------------------- logging + output
