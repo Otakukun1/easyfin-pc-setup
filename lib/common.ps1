@@ -41,23 +41,16 @@ function Test-LockedFolder {
 }
 
 # Makes $Path admin-only to change: a brand-new ACL (Administrators + SYSTEM full control, Users read),
-# owner Administrators. If the folder was NOT already locked, everything in it is deleted first - a
-# normal login may have planted files, hard links or links there (deleting removes the link, never
-# what it points to). Once locked, files written later are trustworthy and kept.
+# owner Administrators. Locks FIRST, then - only if it was not already locked - deletes every file and
+# link at the top level (a normal login may have planted files or hard links; deleting removes the link,
+# never what it points to). Real sub-folders are left alone and never used: emptying one could be
+# redirected while it runs. Once locked, files written later are trustworthy and kept.
 function Initialize-LockedFolder {
     param([Parameter(Mandatory)][string]$Path)
     if (Test-IsLink $Path) { throw "$Path is a link to another place - not used." }
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    } elseif (-not (Test-LockedFolder $Path)) {
-        foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
-            if ($c.PSIsContainer) {
-                # Recursive delete of a junction would empty its target; delete the link itself instead.
-                if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) { [IO.Directory]::Delete($c.FullName) }
-                else { [IO.Directory]::Delete($c.FullName, $true) }
-            } else { [IO.File]::Delete($c.FullName) }
-        }
-    }
+    $wasLocked = $false
+    if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
+    else { $wasLocked = Test-LockedFolder $Path }
     $sid = { param($s) New-Object Security.Principal.SecurityIdentifier($s) }
     $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
     $none = [Security.AccessControl.PropagationFlags]::None
@@ -69,6 +62,13 @@ function Initialize-LockedFolder {
     }
     Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
     if (-not (Test-LockedFolder $Path)) { throw "Could not lock the folder $Path." }
+    if (-not $wasLocked) {
+        foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
+            if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
+            } elseif (-not $c.PSIsContainer) { [IO.File]::Delete($c.FullName) }
+        }
+    }
 }
 
 # ---------------------------------------------------------------- logging + output
