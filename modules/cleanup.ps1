@@ -1,5 +1,6 @@
 # Module: Clean-up - removes bloatware, trial antivirus, preinstalled Office and junk startup items,
-# and stops Windows re-installing sponsored apps. Safe to run again: anything already gone is skipped.
+# and stops Windows re-installing sponsored apps and games, then makes sure Defender is on.
+# Safe to run again: anything already gone is skipped.
 
 # ============================ EDIT HERE ============================
 # Normal programs (Settings > Apps) to remove. * = anything.
@@ -18,6 +19,12 @@ $RemoveApps = @(
     '*Spotify*', '*TikTok*', '*Instagram*', '*Facebook*', '*Twitter*', '*AmazonVideo*', '*PrimeVideo*',
     'Microsoft.MicrosoftSolitaireCollection', 'Microsoft.GamingApp', 'Microsoft.XboxApp', 'Microsoft.XboxGamingOverlay',
     'Microsoft.XboxGameOverlay', 'Microsoft.XboxSpeechToTextOverlay', 'Microsoft.Xbox.TCUI', 'Microsoft.ZuneVideo',
+    'Microsoft.XboxIdentityProvider', 'Microsoft.GamingServices', '*Minecraft*', '*Roblox*', '*Asphalt*', '*FarmVille*',
+    '*RoyalRevolt*', '*HiddenCity*', '*Solitaire*', '*Mahjong*', '*Sudoku*', '*Bejeweled*', '*CookingFever*',
+    '*Duolingo*', '*Flipboard*', '*Shazam*', '*PandoraMedia*', '*SlingTV*', '*Picsart*', '*AdobePhotoshopExpress*',
+    '*McAfee*', 'Microsoft.BingFinance', 'Microsoft.BingSports', 'Microsoft.News', 'Microsoft.Office.Sway',
+    # Copilot - staff don't need it and it nags
+    'Microsoft.Copilot', 'Microsoft.Windows.Ai.Copilot.Provider', 'Microsoft.MicrosoftJournal',
     # Microsoft extras staff don't need
     'Microsoft.BingNews', 'Microsoft.BingWeather', 'Microsoft.BingSearch', 'Microsoft.Getstarted',
     'Microsoft.WindowsFeedbackHub', 'Microsoft.People', 'Microsoft.WindowsMaps', 'Microsoft.MixedReality.Portal',
@@ -55,7 +62,7 @@ if (-not $global:EasyfinSetupLoaded) {
     Initialize-SetupLog
 }
 
-$steps = 6
+$steps = 7
 function Set-CleanupProgress { param([int]$Step, [string]$Text)
     Write-Progress -Id 1 -ParentId 0 -Activity 'Clean-up' -Status ('Step {0} of {1}: {2}' -f $Step, $steps, $Text) -PercentComplete ([int]((($Step - 1) / $steps) * 100))
 }
@@ -188,6 +195,22 @@ if ($c2r -and $c2r.ProductReleaseIds) {
     Write-Skip 'No preinstalled Office found.'
 }
 
+# Last look: any Office that is not 2013 still listed in Settings > Apps. Office 2013 is version 15.x;
+# its parts (Proofing, Shared Setup, language packs) are never touched.
+$otherOffice = @(@(Get-InstalledProgram 'Microsoft 365*') + @(Get-InstalledProgram 'Microsoft Office*') + @(Get-InstalledProgram 'Microsoft OneNote*') +
+    @(Get-InstalledProgram 'Microsoft Project*') + @(Get-InstalledProgram 'Microsoft Visio*') |
+    Where-Object { $_ -and "$($_.DisplayVersion)" -notlike '15.*' -and $_.DisplayName -notlike '*2013*' } |
+    Sort-Object DisplayName -Unique)
+if ($otherOffice.Count -gt 0) {
+    $global:EasyfinRestartNeeded = $true
+    $list = ($otherOffice | Select-Object -ExpandProperty DisplayName) -join ', '
+    Write-Fail "Other Office still on this PC: $list"
+    Write-Info 'Restart, then run Clean-up again. If it is still listed, remove it in Settings > Apps.'
+    $problems += 'Other Office'
+} else {
+    Write-Ok 'No Office other than 2013 on this PC.'
+}
+
 # --- 5. Store-style apps
 Set-CleanupProgress 5 'Junk apps'
 Write-Step 'Junk apps (games, ads, personal Teams, new Outlook)'
@@ -250,6 +273,10 @@ try {
     New-Item -Path $pol -Force | Out-Null
     New-ItemProperty -Path $pol -Name DisableWindowsConsumerFeatures -Value 1 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path $pol -Name DisableConsumerAccountStateContent -Value 1 -PropertyType DWord -Force | Out-Null
+    # Xbox Game Bar and game recording off for everyone (Windows Pro honours this one).
+    $gpol = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR'
+    New-Item -Path $gpol -Force | Out-Null
+    New-ItemProperty -Path $gpol -Name AllowGameDVR -Value 0 -PropertyType DWord -Force | Out-Null
     Set-CdmValues 'HKCU:'
     # The Default profile is the template every new staff login is copied from.
     $hive = "$env:SystemDrive\Users\Default\NTUSER.DAT"
@@ -294,6 +321,49 @@ foreach ($rk in $runKeys) {
     }
 }
 if ($kept.Count -gt 0) { Write-Info ('Left alone (not on the junk list): ' + (($kept | Sort-Object -Unique) -join ', ')) }
+
+# --- 7. Windows' own virus protection must be on once McAfee and other trials are gone.
+# Only ever switches protection ON. Tamper Protection can refuse a change; that is reported, not forced.
+Set-CleanupProgress 7 'Virus protection'
+Write-Step 'Windows virus protection (Microsoft Defender)'
+try {
+    $others = @()
+    try {
+        $others = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop |
+            Where-Object { $_.displayName -notlike '*Defender*' -and $_.displayName -notlike '*McAfee*' } | Select-Object -ExpandProperty displayName)
+    } catch { }
+    if ($others.Count -gt 0) {
+        Write-Warn ('Another virus program is in charge: ' + ($others -join ', ') + '. Defender stays in the background - leave it, or remove that program.')
+    } else {
+        # A leftover "switch Defender off" rule (trial antivirus often leaves one) blocks everything below.
+        foreach ($p in @(
+                @{ Key = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender'; Name = 'DisableAntiSpyware' },
+                @{ Key = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender'; Name = 'DisableAntiVirus' },
+                @{ Key = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring' })) {
+            if ((Get-ItemProperty -Path $p.Key -Name $p.Name -ErrorAction SilentlyContinue).($p.Name) -eq 1) {
+                Remove-ItemProperty -Path $p.Key -Name $p.Name -Force -ErrorAction SilentlyContinue
+                Write-Ok "Removed a leftover rule that switched Defender off ($($p.Name))."
+                $global:EasyfinRestartNeeded = $true
+            }
+        }
+        $svc = Get-Service -Name WinDefend -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne 'Running') { try { Start-Service WinDefend -ErrorAction Stop } catch { } }
+        $mp = Get-MpComputerStatus -ErrorAction Stop
+        if (-not $mp.RealTimeProtectionEnabled) {
+            try { Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop } catch { }
+            Start-Sleep -Seconds 3
+            $mp = Get-MpComputerStatus -ErrorAction Stop
+        }
+        if ($mp.RealTimeProtectionEnabled) { Write-Ok 'Defender is on and watching.' }
+        else {
+            $global:EasyfinRestartNeeded = $true
+            Write-Warn 'Defender is not on yet. It usually switches on by itself after a restart (Final check looks again).'
+        }
+        Write-Info 'Updating Defender (can take a minute)'
+        try { Update-MpSignature -ErrorAction Stop; Write-Ok 'Defender is up to date.' }
+        catch { Write-Warn "Defender update did not run now ($($_.Exception.Message)) - Windows updates does it too." }
+    }
+} catch { Write-Warn "Could not check Defender: $($_.Exception.Message)" }
 
 Write-Progress -Id 1 -Activity 'Clean-up' -Completed
 if ($problems.Count -gt 0) { throw ('Could not remove: ' + ($problems -join ', ')) }

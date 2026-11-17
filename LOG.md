@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-11-17 — Major update (not uploaded - waits for one full test on a real PC)
+
+- Window is now the main way in: `start.ps1` opens it (text menu with `$env:EASYFIN_MENU=1;`, or if
+  the window fails). New "work email" box and "I am signed in as this staff member" tick (adds email +
+  Teams steps). Email fills from the portal once the portal sends it.
+- Carries on after a restart by itself: "Restart and carry on" saves C:\ProgramData\Easyfin\resume.json
+  (admin-only, deleted on read) + a sign-in task; reruns Windows updates, failed steps and the final
+  check, max 3 rounds. Steps from earlier rounds are sent to the portal with the later ones.
+- Clean-up: last-look check that no Office other than 2013 is left; more games/junk (Xbox, Copilot,
+  casual games); Game Bar off by policy; new step 7 makes sure Defender is on (only ever switches it on).
+- Speed-up: best performance when plugged in (High performance plan on desktops), animations and
+  see-through off, no ads/tips/news panel/web search/Copilot/Recall - current user + new staff logins.
+- PC settings: screen locks after 10 minutes (InactivityTimeoutSecs).
+- Final check: Defender, Windows and Office 2013 activation, accounts in the read-me, deletes setup
+  downloads (keeps the Office ISO until Office is in).
+- New module `teams-account.ps1` (menu 12 / window step): asks the portal to make the guest account
+  (`POST /staff/{id}/teams-access`, not built yet - PORTAL-PLAN.md phase 2), opens Teams to sign in.
+- Nico left out: AnyDesk/TeamViewer IDs to the portal, branch Wi-Fi, BitLocker, staff as normal users.
+- Checked: all files parse in PowerShell 5.1, ASCII; window demo run and a demo "after restart" run
+  (pictures checked). NOT tested: anything real as administrator, the sign-in task, Teams sign-in.
+
 ## 2026-10-02 — Script linked to the portal's asset list
 
 - Portal phase 1 is on the VPS (PORTAL-API.md, written by the portal session). The window version now:

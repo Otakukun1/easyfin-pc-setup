@@ -14,19 +14,29 @@
 # the worker replaces Read-Host with a function that hands the question to the window.
 
 # ============================ EDIT HERE ============================
-$GuiVersion = '0.2'
+$GuiVersion = '0.3'
 $RepoBase   = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main'
+# Test copies: $env:EASYFIN_BRANCH='test'; in front of the line takes every file from that GitHub branch.
+if ($env:EASYFIN_BRANCH -match '^[A-Za-z0-9._-]+$') { $RepoBase = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/' + $env:EASYFIN_BRANCH }
 # Order here is the order they run in. On = ticked by default. PortalName = what the asset page shows.
 $Steps = @(
-    @{ Key = 'pc';        Name = 'Name this PC, set time and region'; PortalName = 'PC settings';      Info = 'Restore point, new PC name, South African time and formats'; File = 'modules/pc-settings.ps1';      On = $true;  Mode = 'new' }
-    @{ Key = 'clean';     Name = 'Remove junk';                       PortalName = 'Clean-up';         Info = 'McAfee, trial Office, games, personal Teams';               File = 'modules/cleanup.ps1';          On = $true;  Mode = 'new' }
+    @{ Key = 'pc';        Name = 'Name this PC, set time and region'; PortalName = 'PC settings';      Info = 'Restore point, new PC name, SA time and formats, screen lock after 10 min'; File = 'modules/pc-settings.ps1';      On = $true;  Mode = 'new' }
+    @{ Key = 'clean';     Name = 'Remove junk';                       PortalName = 'Clean-up';         Info = 'McAfee, every other Office, games, personal Teams; Defender on'; File = 'modules/cleanup.ps1';          On = $true;  Mode = 'new' }
     @{ Key = 'apps';      Name = 'Install apps';                      PortalName = 'Apps';             Info = 'Chrome, AnyDesk, Teams, TeamViewer, AweSun, Acrobat Reader'; File = 'modules/apps.ps1';             On = $true;  Mode = 'new' }
     @{ Key = 'bookmarks'; Name = 'Add Easyfin bookmarks';             PortalName = 'Chrome bookmarks'; Info = 'Portal and other systems, in Chrome and Edge';              File = 'modules/chrome-bookmarks.ps1'; On = $true;  Mode = 'new' }
     @{ Key = 'office';    Name = 'Install Office 2013';               PortalName = 'Office 2013';      Info = 'Needs the setup password';                                  File = 'modules/office.ps1';           On = $true;  Mode = 'new' }
+    @{ Key = 'speedup';   Name = 'Speed up and quieten Windows';      PortalName = 'Speed-up';         Info = 'Fast start-up and power, no animations, ads, news, Copilot'; File = 'modules/speedup.ps1';        On = $true;  Mode = 'new' }
+    @{ Key = 'defaults';  Name = 'Default apps and taskbar';          PortalName = 'Defaults, taskbar'; Info = 'Chrome and Acrobat as defaults, Chrome and Outlook on the taskbar'; File = 'modules/defaults.ps1';   On = $true;  Mode = 'new' }
     @{ Key = 'updates';   Name = 'Install Windows updates';           PortalName = 'Windows updates';  Info = 'Slowest step - can take an hour';                           File = 'modules/windows-update.ps1';   On = $true;  Mode = 'new' }
     @{ Key = 'email';     Name = 'Add staff email to Outlook';        PortalName = 'Email account';    Info = 'Only when signed in to Windows as the staff member';        File = 'modules/email-account.ps1';    On = $false; Mode = 'new' }
+    @{ Key = 'teams';     Name = 'Sign in to Teams (work or school)'; PortalName = 'Teams account';    Info = 'Only when signed in to Windows as the staff member';        File = 'modules/teams-account.ps1';    On = $false; Mode = 'new' }
+    @{ Key = 'final';     Name = 'Final check and read-me';           PortalName = 'Final check';      Info = 'Checklist, activation, read-me on the Desktop, tidy up';     File = 'modules/handover.ps1';         On = $true;  Mode = 'new' }
     @{ Key = 'register';  Name = 'Record this PC';                    PortalName = 'Record this PC';   Info = 'Saves its details and who uses it. Installs and removes nothing'; File = 'modules/register-pc.ps1'; On = $true;  Mode = 'register' }
 )
+# Steps that are about the staff member's own Windows login (ticked by "this login is theirs").
+$StaffLoginSteps = @('email', 'teams')
+# After a restart the window opens by itself and carries on (see Save-Resume). Never more rounds than this.
+$MaxRounds = 3
 # ===================================================================
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -56,14 +66,37 @@ try {
     return
 }
 
+# --- carrying on after a restart: a logon task (Save-Resume) starts this with EASYFIN_RESUME=1.
+# The file holds the portal code (valid 2 hours) - admin-only, and deleted as soon as it is read.
+$ResumeFile = Join-Path $env:ProgramData 'Easyfin\resume.json'
+$ResumeTask = 'Easyfin PC Setup - carry on'
+$resume = $null
+if ($env:EASYFIN_RESUME -and (Test-Path $ResumeFile)) {
+    try { $resume = Get-Content -Path $ResumeFile -Raw | ConvertFrom-Json } catch { $resume = $null }
+    Remove-Item -Path $ResumeFile -Force -ErrorAction SilentlyContinue
+}
+if ($env:EASYFIN_RESUME) {
+    try { Unregister-ScheduledTask -TaskName $ResumeTask -Confirm:$false -ErrorAction Stop } catch { }
+    $env:EASYFIN_RESUME = $null
+}
+if ($resume) {
+    $global:EasyfinPortal = [string]$resume.Portal
+    $global:EasyfinCode = [string]$resume.Code
+}
+
 # Everything the event handlers share lives in this one object, so PowerShell scoping can't bite.
 $state = @{ Mode = 'new'; Running = $false; Finished = $false; InfoIdx = 0; ErrIdx = 0; ProgIdx = 0; Progress = @{}; StepUi = @{}
             Ps = $null; Sync = $null; Picked = @(); Linked = $false; Loading = $false; Session = $null; Existing = $null
-            ExistingNote = ''; UseExistingTag = $null; CodeByPrefix = @{}; StaffFor = $null }
+            ExistingNote = ''; UseExistingTag = $null; CodeByPrefix = @{}; StaffFor = $null; EmailById = @{}; Round = 1 }
 
 # --- portal link: check the code before showing anything, so a bad code is caught up front
 function Stop-PortalLink { $global:EasyfinCode = $null; $state.Linked = $false }
-if (Test-PortalLinked) {
+if ($resume) {
+    # Every choice was made before the restart; the code is not checked again (if it ran out, the
+    # record waits on the PC in pending-portal.json and is sent on the next linked run).
+    $state.Linked = Test-PortalLinked
+    $state.Round = [int]$resume.Round
+} elseif (Test-PortalLinked) {
     $state.Linked = $true
     $why = $null
     if (-not (Test-PortalAddressAllowed $global:EasyfinPortal)) {
@@ -78,7 +111,7 @@ if (Test-PortalLinked) {
     }
 }
 $portalBranches = @()
-if ($state.Linked) {
+if ($state.Linked -and -not $resume) {
     try {
         $portalBranches = @(Invoke-Portal -Path '/branches')
         $id = Get-PcIdentity
@@ -163,6 +196,11 @@ $xaml = @'
               <TextBox x:Name="UsedByBox" Margin="0,4,0,2" Padding="4,2"/>
               <ComboBox x:Name="UsedByCombo" Margin="0,4,0,2" Padding="6,4" Visibility="Collapsed"/>
               <TextBlock x:Name="UsedByHint" Text="Leave empty if it is shared or nobody has it yet." Foreground="#8A979E" FontSize="12" TextWrapping="Wrap"/>
+              <TextBlock Text="Their work email (for Outlook and Teams)" Foreground="#5A6B75" Margin="0,12,0,0"/>
+              <TextBox x:Name="StaffEmailBox" Margin="0,4,0,2" Padding="4,2"/>
+              <CheckBox x:Name="StaffLoginBox" Margin="0,10,0,0">
+                <TextBlock TextWrapping="Wrap" Text="I am signed in to Windows as this staff member (also sets up their email and Teams)"/>
+              </CheckBox>
             </StackPanel>
           </Border>
 
@@ -211,7 +249,7 @@ $xaml = @'
 $window = [Windows.Markup.XamlReader]::Parse($xaml)
 $ui = @{}
 foreach ($n in 'TitleText', 'PcLine', 'PortalLine', 'ExistingText', 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName',
-               'StepsPanel', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'UsedByHint', 'PwPanel',
+               'StepsPanel', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'UsedByHint', 'PwPanel', 'StaffEmailBox', 'StaffLoginBox',
                'Activity', 'SubStatus', 'Bar', 'LogBox', 'RestartBtn', 'StartBtn', 'Hint', 'LeftPanel') { $ui[$n] = $window.FindName($n) }
 
 # --- header
@@ -220,7 +258,9 @@ $idHead = Get-PcIdentity
 $serialText = $idHead.SerialNumber; if (-not $serialText) { $serialText = '(none - uses hardware number)' }
 $ui.PcLine.Text = ('This PC: {0}   |   {1} {2}   |   Serial {3}   |   v{4}' -f $env:COMPUTERNAME, "$($cs.Manufacturer)".Trim(), "$($cs.Model)".Trim(), $serialText, $GuiVersion)
 if ($Demo) { $ui.TitleText.Text = 'Easyfin PC Setup  -  DEMO (nothing on this PC is changed)' }
-if ($state.Linked) {
+if ($resume) {
+    $ui.PortalLine.Text = ('Carrying on after the restart (round {0} of {1}) - {2}' -f $state.Round, $MaxRounds, $resume.PcName)
+} elseif ($state.Linked) {
     $until = ''
     try { $until = ([datetime]$state.Session.expires_at).ToString('HH:mm') } catch { }
     $ui.PortalLine.Text = ('Linked to the portal - code made by {0}, valid until {1}. This PC will be logged in the asset list.' -f $state.Session.made_by, $until)
@@ -320,9 +360,9 @@ function Update-StaffList {
     $ui.UsedByCombo.Items.Clear()
     $ex = $state.Existing
     $add = {
-        param($Text, $Mode, $Id)
+        param($Text, $Mode, $Id, $Email)
         $it = New-Object Windows.Controls.ComboBoxItem
-        $it.Content = $Text; $it.Tag = @{ Mode = $Mode; Id = $Id; Name = $Text }
+        $it.Content = $Text; $it.Tag = @{ Mode = $Mode; Id = $Id; Name = $Text; Email = $Email }
         [void]$ui.UsedByCombo.Items.Add($it)
         return $it
     }
@@ -335,7 +375,12 @@ function Update-StaffList {
     $nobody = & $add 'Nobody yet / shared PC' 'none' $null
     if (-not $select) { $select = $nobody }
     try {
-        foreach ($p in @(Invoke-Portal -Path "/branches/$Code/staff")) { [void](& $add ([string]$p.name) 'id' ([int]$p.id)) }
+        foreach ($p in @(Invoke-Portal -Path "/branches/$Code/staff")) {
+            # email arrives once the portal sends it (PORTAL-PLAN.md, phase 2); until then it is typed.
+            $mail = ''; if ($p.PSObject.Properties['email']) { $mail = [string]$p.email }
+            if ($mail) { $state.EmailById[[int]$p.id] = $mail }
+            [void](& $add ([string]$p.name) 'id' ([int]$p.id) $mail)
+        }
     } catch {
         Show-PortalProblem $_.Exception.Message
     }
@@ -367,6 +412,14 @@ function Update-Suggestion {
 }
 
 $ui.BranchBox.Add_SelectionChanged({ Update-Suggestion })
+$ui.UsedByCombo.Add_SelectionChanged({
+    $who = $ui.UsedByCombo.SelectedItem
+    if (-not $who) { return }
+    $mail = $who.Tag.Email
+    if (-not $mail -and $who.Tag.Mode -eq 'keep' -and $state.Existing -and $state.Existing.assigned_to) { $mail = $state.EmailById[[int]$state.Existing.assigned_to.id] }
+    if ($mail) { $ui.StaffEmailBox.Text = $mail }
+    elseif ($who.Tag.Mode -eq 'none') { $ui.StaffEmailBox.Text = '' }
+})
 $ui.KindL.Add_Checked({ Update-Suggestion })
 $ui.KindD.Add_Checked({ Update-Suggestion })
 $ui.NumBox.Add_TextChanged({ if (-not $state.Loading) { $state.UseExistingTag = $null }; Update-NamePreview })
@@ -421,6 +474,10 @@ foreach ($s in $Steps) {
     $state.StepUi[$s.Key] = @{ Check = $cb; Status = $status; Row = $row }
 }
 
+$ui.StaffLoginBox.Add_Click({
+    foreach ($k in $StaffLoginSteps) { $state.StepUi[$k].Check.IsChecked = [bool]$ui.StaffLoginBox.IsChecked }
+})
+
 # --- the two modes: full setup of a new PC, or just recording a PC that is already in use
 function Update-Mode {
     $mode = 'new'; if ($ui.ModeReg.IsChecked) { $mode = 'register' }
@@ -432,10 +489,12 @@ function Update-Mode {
     if ($mode -eq 'register') {
         $ui.KeepName.IsChecked = $false
         $ui.KeepName.Visibility = 'Collapsed'; $ui.RenameBox.Visibility = 'Visible'; $ui.PwPanel.Visibility = 'Collapsed'
+        $ui.StaffLoginBox.Visibility = 'Collapsed'
         $ui.StartBtn.Content = 'Record this PC'
         $ui.Hint.Text = 'Renaming a PC that is in use can break shared printers or folders that other PCs reach by its old name. Untick "Rename" if unsure.'
     } else {
         $ui.RenameBox.Visibility = 'Collapsed'
+        $ui.StaffLoginBox.Visibility = 'Visible'
         if (-not $state.Linked) { $ui.KeepName.Visibility = 'Visible' }
         if (-not ($state.Linked -and $global:EasyfinPortal -like 'https://*')) { $ui.PwPanel.Visibility = 'Visible' }
         $ui.StartBtn.Content = 'Start setup'
@@ -521,6 +580,10 @@ try {
     # Answers given in the window up front, so the modules don't have to ask.
     if ($sync.PcName) { $global:EasyfinPcName = $sync.PcName }
     $global:EasyfinUsedBy = [string]$sync.UsedBy
+    $global:EasyfinStaffName = [string]$sync.StaffName
+    $global:EasyfinStaffEmail = [string]$sync.StaffEmail
+    if ($sync.StaffId) { $global:EasyfinEmployeeId = [int]$sync.StaffId }
+    $global:EasyfinLoginConfirmed = [bool]$sync.LoginConfirmed
     if ($sync.Mode -eq 'register') { $global:EasyfinRename = [bool]$sync.Rename }
     if ($sync.Password) {
         $sec = New-Object Security.SecureString
@@ -564,7 +627,15 @@ try {
     if ($sync.Portal -and $sync.Code -and $sync.PcName) {
         $sync.CurrentText = 'Logging this PC in the portal'
         Write-Title 'Logging this PC in the portal'
+        # The portal replaces the whole list each time, so steps done before a restart are sent again.
         $stepList = @()
+        $nowKeys = @($sync.Picked | ForEach-Object { $_.Key })
+        foreach ($p in @($sync.PrevSteps)) {
+            if (-not $p -or $nowKeys -contains $p.Key) { continue }
+            $o = [ordered]@{ name = [string]$p.name; ok = [bool]$p.ok }
+            if ($p.note) { $o.note = [string]$p.note }
+            $stepList += $o
+        }
         foreach ($p in $sync.Picked) {
             $o = [ordered]@{ name = $p.PortalName; ok = ($sync.Status[$p.Key] -eq 'Done') }
             $d = [string]$sync.Detail[$p.Key]
@@ -633,14 +704,19 @@ function Complete-Run {
         if ($sync.PortalFailed) { $ui.SubStatus.Foreground = '#C0392B' }
     }
     $todo = @()
-    if ($sync.RestartNeeded) { $todo += 'restart this PC' }
-    if ($state.Picked | Where-Object { $_.Key -eq 'updates' }) { $todo += 'after the restart, run Windows updates once more' }
-    if ($state.Mode -eq 'new' -and -not ($state.Picked | Where-Object { $_.Key -eq 'email' })) { $todo += "add the staff member's email (sign in as them first)" }
+    $again = @(Get-FollowUpSteps)
+    if ($sync.RestartNeeded -and $again.Count -gt 0) { $todo += 'press "Restart and carry on" - it finishes by itself after you sign in again' }
+    elseif ($sync.RestartNeeded) { $todo += 'restart this PC' }
+    $staffDone = @(@($state.Picked) + @($state.Choice.PrevSteps) | Where-Object { $_ -and $StaffLoginSteps -contains $_.Key })
+    if ($state.Mode -eq 'new' -and $staffDone.Count -eq 0) { $todo += "sign in as the staff member and run email and Teams" }
     if ($todo.Count -gt 0) { $ui.Hint.Text = 'Still to do: ' + ($todo -join '; ') + '.' } else { $ui.Hint.Text = 'Nothing else to do on this PC.' }
     if ($sync.LogFile) { Add-LogLine ''; Add-LogLine "Full log: $($sync.LogFile)" 'DarkGray' }
     $ui.StartBtn.Content = 'Close'
     $ui.StartBtn.IsEnabled = $true
-    if ($sync.RestartNeeded -and -not $Demo) { $ui.RestartBtn.Visibility = 'Visible' }
+    if ($sync.RestartNeeded -and -not $Demo) {
+        if ($again.Count -gt 0) { $ui.RestartBtn.Content = 'Restart and carry on' } else { $ui.RestartBtn.Content = 'Restart PC now' }
+        $ui.RestartBtn.Visibility = 'Visible'
+    }
 }
 
 $timer = New-Object Windows.Threading.DispatcherTimer
@@ -715,21 +791,45 @@ $ui.StartBtn.Add_Click({
     }
 
     $usedBy = $ui.UsedByBox.Text.Trim()
-    $empMode = 'keep'; $empId = $null
+    $empMode = 'keep'; $empId = $null; $staffId = $null
     if ($state.Linked) {
         $who = $ui.UsedByCombo.SelectedItem
         if ($who) {
-            $empMode = $who.Tag.Mode; $empId = $who.Tag.Id
+            $empMode = $who.Tag.Mode; $empId = $who.Tag.Id; $staffId = $who.Tag.Id
             $usedBy = ''
             if ($empMode -eq 'id') { $usedBy = $who.Tag.Name }
-            elseif ($empMode -eq 'keep' -and $state.Existing -and $state.Existing.assigned_to) { $usedBy = [string]$state.Existing.assigned_to.name }
+            elseif ($empMode -eq 'keep' -and $state.Existing -and $state.Existing.assigned_to) {
+                $usedBy = [string]$state.Existing.assigned_to.name; $staffId = [int]$state.Existing.assigned_to.id
+            }
         }
     }
+    $staffEmail = $ui.StaffEmailBox.Text.Trim()
+    if ($staffEmail -and $staffEmail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') {
+        [void][Windows.MessageBox]::Show($window, 'The work email does not look right. Fix it or leave it empty.', 'Easyfin PC Setup', 'OK', 'Information'); return
+    }
+    $loginIsStaff = [bool]$ui.StaffLoginBox.IsChecked
+    if (($picked | Where-Object { $StaffLoginSteps -contains $_.Key }) -and -not $loginIsStaff) {
+        $r = [Windows.MessageBox]::Show($window, "Email and Teams only work when you are signed in to Windows as the staff member (this login is '$env:USERNAME').`n`nIs this their login?", 'Easyfin PC Setup', 'YesNo', 'Question')
+        if ($r -ne 'Yes') { return }
+        $loginIsStaff = $true
+    }
 
+    Start-Run -Picked $picked -Choice @{
+        PcName = $pcName; Password = $ui.PwBox.Password; UsedBy = $usedBy; Rename = [bool]$ui.RenameBox.IsChecked
+        BranchCode = (Get-SelectedCode); Kind = (Get-Kind); EmployeeMode = $empMode; EmployeeId = $empId
+        StaffName = $usedBy; StaffEmail = $staffEmail; StaffId = $staffId; LoginConfirmed = $loginIsStaff; PrevSteps = @()
+    }
+})
+
+# Starts the worker. $Choice holds every answer, so a run after a restart can start without the form.
+function Start-Run {
+    param([array]$Picked, [hashtable]$Choice)
     $sync = [hashtable]::Synchronized(@{
-        Picked = $picked; PcName = $pcName; Password = $ui.PwBox.Password; Demo = $Demo; DemoPost = [bool]$env:EASYFIN_DEMO_POST
-        Mode = $state.Mode; UsedBy = $usedBy; Rename = [bool]$ui.RenameBox.IsChecked
-        Portal = $null; Code = $null; BranchCode = (Get-SelectedCode); Kind = (Get-Kind); EmployeeMode = $empMode; EmployeeId = $empId
+        Picked = $Picked; PcName = $Choice.PcName; Password = $Choice.Password; Demo = $Demo; DemoPost = [bool]$env:EASYFIN_DEMO_POST
+        Mode = $state.Mode; UsedBy = $Choice.UsedBy; Rename = [bool]$Choice.Rename
+        Portal = $null; Code = $null; BranchCode = $Choice.BranchCode; Kind = $Choice.Kind; EmployeeMode = $Choice.EmployeeMode; EmployeeId = $Choice.EmployeeId
+        StaffName = $Choice.StaffName; StaffEmail = $Choice.StaffEmail; StaffId = $Choice.StaffId; LoginConfirmed = [bool]$Choice.LoginConfirmed
+        PrevSteps = @($Choice.PrevSteps)
         GuiVersion = $GuiVersion; PortalResult = $null; PortalFailed = $false
         LocalRoot = $LocalRoot; RepoBase = $RepoBase
         Status = [hashtable]::Synchronized(@{}); Detail = [hashtable]::Synchronized(@{})
@@ -737,9 +837,10 @@ $ui.StartBtn.Add_Click({
         CurrentKey = ''; CurrentText = ''; RestartNeeded = $false; LogFile = $null
     })
     if ($state.Linked) { $sync.Portal = $global:EasyfinPortal; $sync.Code = $global:EasyfinCode }
+    $state.Choice = $Choice
     foreach ($s in $Steps) { $state.StepUi[$s.Key].Check.IsEnabled = $false; $state.StepUi[$s.Key].Status.Text = '' }
-    foreach ($p in $picked) { Set-StepStatus $p.Key 'Waiting' }
-    foreach ($c in 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo') { $ui[$c].IsEnabled = $false }
+    foreach ($p in $Picked) { $state.StepUi[$p.Key].Check.IsChecked = $true; Set-StepStatus $p.Key 'Waiting' }
+    foreach ($c in 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'StaffEmailBox', 'StaffLoginBox') { $ui[$c].IsEnabled = $false }
     $ui.StartBtn.IsEnabled = $false
     $ui.StartBtn.Content = 'Working...'
     $ui.Hint.Text = 'You can walk away. It only stops when it needs a click from you. Do not close this window.'
@@ -753,16 +854,87 @@ $ui.StartBtn.Add_Click({
     $ps.Runspace = $rs
     [void]$ps.AddScript($workerScript)
 
-    $state.Sync = $sync; $state.Ps = $ps; $state.Picked = $picked
+    $state.Sync = $sync; $state.Ps = $ps; $state.Picked = $Picked
     $state.InfoIdx = 0; $state.ErrIdx = 0; $state.ProgIdx = 0; $state.Progress = @{}
     $state.Running = $true
     $state.Handle = $ps.BeginInvoke()
     $timer.Start()
-})
+}
+
+# Steps worth running again after a restart: Windows updates (there are always more after the first
+# round), anything that failed (often only because a restart was due), and the final check.
+# The staff member's own email/Teams steps are not repeated - they need that person at the PC.
+function Get-FollowUpSteps {
+    $sync = $state.Sync
+    if (-not $sync -or $Demo -or -not $sync.RestartNeeded -or $state.Round -ge $MaxRounds) { return @() }
+    $again = @($state.Picked | Where-Object {
+        $StaffLoginSteps -notcontains $_.Key -and $_.Key -ne 'final' -and
+        ($_.Key -eq 'updates' -or $sync.Status[$_.Key] -eq 'Failed') })
+    if ($again.Count -eq 0) { return @() }
+    $again += @($state.Picked | Where-Object { $_.Key -eq 'final' })
+    return $again
+}
+
+# Saves what is left to do and makes Windows open this window again at the next sign-in, as administrator.
+function Save-Resume {
+    param([array]$Again)
+    $sync = $state.Sync
+    $prev = @()
+    $againKeys = @($Again | ForEach-Object { $_.Key })
+    foreach ($p in @($state.Choice.PrevSteps)) { if ($p -and $againKeys -notcontains $p.Key) { $prev += $p } }
+    foreach ($p in $state.Picked) {
+        if ($againKeys -contains $p.Key) { continue }
+        $o = [ordered]@{ Key = $p.Key; name = $p.PortalName; ok = ($sync.Status[$p.Key] -eq 'Done') }
+        $d = [string]$sync.Detail[$p.Key]; if ($d) { if ($d.Length -gt 300) { $d = $d.Substring(0, 300) }; $o.note = $d }
+        $prev += $o
+    }
+    $data = [ordered]@{
+        Round = $state.Round + 1; Steps = $againKeys; Mode = $state.Mode
+        PcName = $sync.PcName; UsedBy = $sync.UsedBy; BranchCode = $sync.BranchCode; Kind = $sync.Kind
+        EmployeeMode = $sync.EmployeeMode; EmployeeId = $sync.EmployeeId
+        StaffName = $sync.StaffName; StaffEmail = $sync.StaffEmail; StaffId = $sync.StaffId
+        Portal = $sync.Portal; Code = $sync.Code; PrevSteps = $prev; SavedAt = (Get-Date -Format 's')
+    }
+    New-Item -ItemType Directory -Path (Split-Path $ResumeFile) -Force | Out-Null
+    ConvertTo-Json -InputObject $data -Depth 6 | Set-Content -Path $ResumeFile -Encoding UTF8
+    & icacls.exe $ResumeFile /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' | Out-Null
+
+    # The paste line's one-liner, but waiting up to 5 minutes for the internet after sign-in.
+    if ($LocalRoot) {
+        $run = "& '" + (Join-Path $LocalRoot 'gui\start-gui.ps1') + "'"
+    } else {
+        $run = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `$t = `$null; " +
+               "for (`$i = 0; `$i -lt 60 -and -not `$t; `$i++) { try { `$t = Invoke-RestMethod -Uri '$RepoBase/gui/start-gui.ps1' -UseBasicParsing } catch { Start-Sleep -Seconds 5 } }; " +
+               "if (`$t) { Invoke-Expression `$t }"
+    }
+    $branch = ''
+    if ($env:EASYFIN_BRANCH -match '^[A-Za-z0-9._-]+$') { $branch = "`$env:EASYFIN_BRANCH='$env:EASYFIN_BRANCH'; " }
+    $arg = "-NoProfile -ExecutionPolicy Bypass -Command `"`$env:EASYFIN_RESUME='1'; $branch$run`""
+    $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arg
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+    $trigger.Delay = 'PT20S'
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 12)
+    Register-ScheduledTask -TaskName $ResumeTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+}
 
 $ui.RestartBtn.Add_Click({
-    $r = [Windows.MessageBox]::Show($window, 'Restart this PC now?', 'Easyfin PC Setup', 'YesNo', 'Question')
-    if ($r -eq 'Yes') { Restart-Computer -Force }
+    $again = @(Get-FollowUpSteps)
+    if ($again.Count -gt 0) {
+        $names = ($again | ForEach-Object { $_.Name }) -join ', '
+        $r = [Windows.MessageBox]::Show($window, "Restart now and carry on by itself?`n`nAfter the restart, sign in as '$env:USERNAME' again. This window opens by itself and does: $names.", 'Easyfin PC Setup', 'YesNo', 'Question')
+        if ($r -ne 'Yes') { return }
+        try { Save-Resume -Again $again }
+        catch {
+            [void][Windows.MessageBox]::Show($window, "Could not set up carrying on after the restart: $($_.Exception.Message)`n`nRestart by hand and paste the line again.", 'Easyfin PC Setup', 'OK', 'Warning')
+            return
+        }
+    } else {
+        $r = [Windows.MessageBox]::Show($window, 'Restart this PC now?', 'Easyfin PC Setup', 'YesNo', 'Question')
+        if ($r -ne 'Yes') { return }
+    }
+    Restart-Computer -Force
 })
 
 $window.Add_Closing({
@@ -774,6 +946,27 @@ $window.Add_Closing({
         try { [void]$state.Ps.BeginStop($null, $null) } catch { }
     }
 })
+
+if ($resume) {
+    $keys = @($resume.Steps)
+    $state.ResumePicked = @($Steps | Where-Object { $_.Mode -eq 'new' -and $keys -contains $_.Key })
+    $state.ResumeChoice = @{
+        PcName = [string]$resume.PcName; Password = ''; UsedBy = [string]$resume.UsedBy; Rename = $false
+        BranchCode = [string]$resume.BranchCode; Kind = [string]$resume.Kind; EmployeeMode = [string]$resume.EmployeeMode; EmployeeId = $resume.EmployeeId
+        StaffName = [string]$resume.StaffName; StaffEmail = [string]$resume.StaffEmail; StaffId = $resume.StaffId; LoginConfirmed = $false
+        PrevSteps = @($resume.PrevSteps)
+    }
+    foreach ($s in $Steps) { $state.StepUi[$s.Key].Check.IsChecked = ($keys -contains $s.Key) }
+    $ui.Activity.Text = 'Carrying on after the restart'
+    $ui.SubStatus.Text = 'Starts by itself in a few seconds: ' + (($state.ResumePicked | ForEach-Object { $_.Name }) -join ', ')
+    $state.ResumeTimer = New-Object Windows.Threading.DispatcherTimer
+    $state.ResumeTimer.Interval = [TimeSpan]::FromSeconds(5)
+    $state.ResumeTimer.Add_Tick({
+        $state.ResumeTimer.Stop()
+        if ($state.ResumePicked.Count -gt 0 -and -not $state.Running -and -not $state.Finished) { Start-Run -Picked $state.ResumePicked -Choice $state.ResumeChoice }
+    })
+    $window.Add_ContentRendered({ $state.ResumeTimer.Start() })
+}
 
 # Test hook used while building this: saves pictures of the window, presses Start by itself, then closes.
 if ($env:EASYFIN_GUI_SHOT) {
@@ -800,7 +993,7 @@ if ($env:EASYFIN_GUI_SHOT) {
             }
             if ($state.Linked -and $ui.UsedByCombo.Items.Count -gt 2) { $ui.UsedByCombo.SelectedIndex = $ui.UsedByCombo.Items.Count - 1 }
             & $shot '1-start.png'
-            $ui.StartBtn.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
+            if (-not $resume) { $ui.StartBtn.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent))) }
         }
         if ($state.ShotTick -eq 14) { & $shot '2-working.png' }
         if ($state.Finished -and -not $state.ShotDone) { $state.ShotDone = $true; & $shot '3-finished.png'; $auto.Stop(); $window.Close() }

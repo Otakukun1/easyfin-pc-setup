@@ -421,8 +421,10 @@ function Save-PcInfo {
 # The portal's "Set up a new PC" page prints a line that sets EASYFIN_PORTAL and EASYFIN_CODE.
 # With both set, the script reads branches/staff from the portal and logs each PC in the asset
 # register. Without them everything works as before, just without logging. API: PORTAL-API.md.
-if ($env:EASYFIN_PORTAL -and -not $global:EasyfinPortal) { $global:EasyfinPortal = $env:EASYFIN_PORTAL.Trim().TrimEnd('/') }
-if ($env:EASYFIN_CODE -and -not $global:EasyfinCode) { $global:EasyfinCode = $env:EASYFIN_CODE.Trim() }
+# A fresh paste line always wins over what an earlier run left in this same window (that stale address
+# once made a correct https line fall back to the old http one).
+if ($env:EASYFIN_PORTAL) { $global:EasyfinPortal = $env:EASYFIN_PORTAL.Trim().TrimEnd('/') }
+if ($env:EASYFIN_CODE) { $global:EasyfinCode = $env:EASYFIN_CODE.Trim() }
 $global:EasyfinPendingFile = 'C:\Temp\Setup\pending-portal.json'
 
 function Test-PortalLinked { return [bool]($global:EasyfinPortal -and $global:EasyfinCode) }

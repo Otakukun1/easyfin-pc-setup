@@ -5,8 +5,10 @@
 # Runs via iex, so never use 'exit' here - it would close the admin window. Use 'return'.
 
 # ============================ EDIT HERE ============================
-$SetupVersion = '0.1 (test)'
+$SetupVersion = '0.2 (test)'
 $RepoBase     = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main'
+# Test copies: $env:EASYFIN_BRANCH='test'; in front of the line takes every file from that GitHub branch.
+if ($env:EASYFIN_BRANCH -match '^[A-Za-z0-9._-]+$') { $RepoBase = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/' + $env:EASYFIN_BRANCH }
 
 # To add a module: put the file in modules\ and add one line here.
 # Ready   = $false shows it greyed out as "coming soon".
@@ -20,6 +22,10 @@ $Modules = @(
     @{ Key = '6'; Name = 'Windows updates';  File = 'modules/windows-update.ps1';   Ready = $true ; RunAll = $true;  Info = 'install everything available' }
     @{ Key = '7'; Name = 'Email account';    File = 'modules/email-account.ps1';    Ready = $true ; RunAll = $false; Info = "add a staff member's email to Outlook" }
     @{ Key = '8'; Name = 'Register this PC'; File = 'modules/register-pc.ps1';     Ready = $true ; RunAll = $false; Info = 'PC already in use: record its details and who uses it, optional rename' }
+    @{ Key = '9'; Name = 'Speed-up';         File = 'modules/speedup.ps1';          Ready = $true ; RunAll = $true;  Info = 'only Outlook and Teams start with Windows, file endings, no sleep' }
+    @{ Key = '10'; Name = 'Defaults, taskbar'; File = 'modules/defaults.ps1';       Ready = $true ; RunAll = $true;  Info = 'Chrome and Acrobat as default apps, Chrome and Outlook on the taskbar' }
+    @{ Key = '11'; Name = 'Final check';     File = 'modules/handover.ps1';         Ready = $true ; RunAll = $true;  Info = 'checklist, activation, read-me on the Desktop, tidy up' }
+    @{ Key = '12'; Name = 'Teams account';   File = 'modules/teams-account.ps1';    Ready = $true ; RunAll = $false; Info = 'sign the staff member in to Teams (work or school)' }
 )
 # ===================================================================
 
@@ -36,6 +42,19 @@ function Get-SetupFile {
     if ($LocalRoot) { return Get-Content -Path (Join-Path $LocalRoot $RelativePath) -Raw }
     # The query string gets past GitHub's 5-minute cache so a fresh push is picked up straight away.
     return Invoke-RestMethod -Uri ('{0}/{1}?t={2}' -f $RepoBase, $RelativePath, [DateTime]::UtcNow.Ticks) -UseBasicParsing
+}
+
+# The window is the main way in. Put $env:EASYFIN_MENU=1; in front of the line for this text menu
+# instead. Also the fallback when the window cannot open.
+if (-not $env:EASYFIN_MENU) {
+    try {
+        Write-Host '  Opening the setup window...' -ForegroundColor Cyan
+        if ($LocalRoot) { & (Join-Path $LocalRoot 'gui\start-gui.ps1') }
+        else { . ([scriptblock]::Create((Get-SetupFile 'gui/start-gui.ps1'))) }
+        return
+    } catch {
+        Write-Host "  The setup window could not open ($($_.Exception.Message)) - using the text menu." -ForegroundColor Yellow
+    }
 }
 
 # --- admin check (before anything touches the PC)

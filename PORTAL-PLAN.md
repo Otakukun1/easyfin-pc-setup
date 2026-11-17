@@ -209,3 +209,50 @@ PCs whose Windows name does not match the tag. That is his roll-out checklist.
   `{ employee_id, name, branch_code, branch_name }`.
 - `POST /assets` with a `self` code: body carries hardware details, `windows_name`, `shared` (bool);
   reply includes the assigned `asset_tag`.
+
+## Phase 2 (17 Nov 2026): staff details + Teams accounts from the portal
+
+Written for: the Portal_New session. From: the PC setup session. Script side is built and waits on
+these; until they exist the script falls back to typing the email and skips the Teams account.
+Needs Nico's yes in the Portal_New window before building.
+
+**Why:** Nico wants the setup window to fill the staff member's email itself, and each new staff
+member to land in Easyfin's Teams (work or school) with their work email. Easyfin staff are guest
+accounts in the Easfin Microsoft tenant. The setup script is a public
+GitHub repo, so the Azure key that can invite guests must live only on the portal's server.
+
+**1. `GET /branches/{code}/staff` - add `email`** (the work email the portal holds, or null) and
+optionally `job_title`. Nothing else (POPIA: no ID numbers, phones, addresses).
+```json
+[ { "id": 12, "name": "Jane Smith", "email": "jane@bloans.co.za", "job_title": "Admin Clerk" } ]
+```
+
+**2. `POST /staff/{id}/teams-access`** - body `{ "email": "jane@bloans.co.za" }` (the email the
+setup person confirmed; the portal may prefer its own stored one and say so). The portal:
+- finds the user in the Easfin tenant by mail / otherMails / UPN; if none, creates a guest
+  invitation (`POST /invitations`, `sendInvitationMessage: true`, `inviteRedirectUrl:
+  https://teams.microsoft.com`, display name = the employee's portal name);
+- adds them to the team(s) for their branch's group (e.g. Miloans Loans Group for Miloans
+  branches) - a setting per group or in config, not typed into code; then to the channels that
+  team uses for everyone, if any;
+- records who did it (the code's maker) and when, on the employee;
+- is switched off by a setting until Nico turns it on; refuses closed branches / staff outside reach
+  like the other routes.
+
+Reply:
+```json
+{ "result": "invited" | "existing" | "added",
+  "email": "jane@bloans.co.za",
+  "teams": ["Miloans Loans Group"],
+  "message": "Jane Smith was invited. Microsoft emails her an invitation - she clicks Accept." }
+```
+Refusals as usual: `{ "error": "one plain sentence" }`. 404 when the employee is unknown.
+
+**Azure:** the portal's Entra app today has Sites.Selected only. This needs Nico (as admin) to add
+`User.Invite.All` and `GroupMember.ReadWrite.All` (application) and grant consent. AVA's own app
+already has GroupMember.ReadWrite.All; adding members works via `POST /groups/{teamId}/members/$ref`
+(the `/teams/{id}/members` routes return an empty AccessDenied - see AVA memory
+azure-app-permissions-2026-10-22). Keep the key in the portal's .env only.
+
+**Worth knowing:** Microsoft intends guest accounts for people outside the company. Using them for
+own staff instead of licences is Nico's existing practice and his call; flagged to him on 17 Nov 2026.

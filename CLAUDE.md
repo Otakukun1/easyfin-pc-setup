@@ -106,3 +106,12 @@ Never log the password or an unlocked value.
   before cutover: https://41-222-36-148.sslip.io. Portal_New sessions need Nico's approval typed in their own window.
 - Chrome ManagedBookmarks is a JSON string at `HKLM:\SOFTWARE\Policies\Google\Chrome\ManagedBookmarks`;
   folder name via `toplevel_name`. Verify at `chrome://policy`.
+- Carry-on after restart: gui/start-gui.ps1 Save-Resume writes C:\ProgramData\Easyfin\resume.json (holds the
+  2-hour portal code - admin-only ACL, deleted the moment it is read) and a logon task
+  "Easyfin PC Setup - carry on" (RunLevel Highest, removes itself). The demo test hook skips its Start click
+  when resuming, so a demo resume run tests the real auto-start.
+- Teams/guest accounts: the Azure key that invites guests belongs on the PORTAL only (repo is public).
+  The script calls POST /api/pc-setup/staff/{id}/teams-access (PORTAL-PLAN.md phase 2) and treats 404/405
+  as "not built yet". No script can finish a Microsoft sign-in for the person.
+- Speed-up never touches Defender, Windows Update or security. Windows 11 blocks writing TaskbarDa
+  (widgets button) - use the Dsh AllowNewsAndInterests policy instead.

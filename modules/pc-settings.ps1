@@ -1,4 +1,4 @@
-# Module: PC settings - restore point, PC name, time zone + clock, region, PC info file.
+# Module: PC settings - restore point, PC name, time zone + clock, region, screen lock, PC info file.
 # Safe to run again: anything already set is skipped. A new PC name needs a restart to take effect.
 
 # ============================ EDIT HERE ============================
@@ -6,6 +6,7 @@
 $TimeZoneId  = 'South Africa Standard Time'
 $Culture     = 'en-ZA'        # date format, currency (R), numbers
 $GeoId       = 209            # Windows' number for South Africa (location)
+$LockMinutes = 10             # screen locks after this many minutes of no use (protects client details)
 # ===================================================================
 
 if (-not $global:EasyfinSetupLoaded) {
@@ -14,7 +15,7 @@ if (-not $global:EasyfinSetupLoaded) {
     Initialize-SetupLog
 }
 
-$steps = 5
+$steps = 6
 function Set-PcProgress { param([int]$Step, [string]$Text)
     Write-Progress -Id 1 -ParentId 0 -Activity 'PC settings' -Status ('Step {0} of {1}: {2}' -f $Step, $steps, $Text) -PercentComplete ([int]((($Step - 1) / $steps) * 100))
 }
@@ -72,8 +73,23 @@ if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyCont
     Write-Info 'This Windows version cannot copy region to new logins - each login gets it when they run this.'
 }
 
-# --- 5. PC details file (for the portal's asset list)
-Set-PcProgress 5 'PC details'
+# --- 5. screen lock. Machine-wide rule, so it holds for every login. Sleep settings don't affect it.
+Set-PcProgress 5 'Screen lock'
+Write-Step ("Screen lock after {0} minutes of no use" -f $LockMinutes)
+try {
+    $sys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+    $want = $LockMinutes * 60
+    if ((Get-ItemProperty -Path $sys -Name InactivityTimeoutSecs -ErrorAction SilentlyContinue).InactivityTimeoutSecs -eq $want) {
+        Write-Skip 'Already set.'
+    } else {
+        New-ItemProperty -Path $sys -Name InactivityTimeoutSecs -Value $want -PropertyType DWord -Force | Out-Null
+        $global:EasyfinRestartNeeded = $true
+        Write-Ok ("The PC locks itself after {0} minutes (from the next restart)." -f $LockMinutes)
+    }
+} catch { Write-Warn "Could not set the screen lock: $($_.Exception.Message)" }
+
+# --- 6. PC details file (for the portal's asset list)
+Set-PcProgress 6 'PC details'
 Write-Step 'Saving PC details'
 [void](Save-PcInfo -AssetTag $newName -UsedBy $global:EasyfinUsedBy)
 

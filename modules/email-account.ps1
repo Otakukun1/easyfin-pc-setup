@@ -45,14 +45,18 @@ Write-Info "Found $outlook"
 
 Write-Warn "This sets up Outlook for the Windows login '$env:USERNAME'."
 Write-Warn 'It must be the staff member''s own Windows login, or they will not see the account.'
-$ans = Read-Host '   Is this the right Windows login? (Y/N)'
-if ($ans -notmatch '^[Yy]') { throw "Stopped: sign in to Windows as the staff member and run option 7 there." }
+if (-not $global:EasyfinLoginConfirmed) {
+    $ans = Read-Host '   Is this the right Windows login? (Y/N)'
+    if ($ans -notmatch '^[Yy]') { throw "Stopped: sign in to Windows as the staff member and run option 7 there." }
+    $global:EasyfinLoginConfirmed = $true
+}
 
 # --- 2. who
 Write-Step 'Staff member details'
-$name = ''
+# The window (or the portal) may already have given the name and work email - then nothing is asked.
+$name = ([string]$global:EasyfinStaffName).Trim()
 while (-not $name) { $name = (Read-Host '   Full name (as people should see it, e.g. Jane Smith)').Trim() }
-$email = ''
+$email = ([string]$global:EasyfinStaffEmail).Trim()
 while ($email -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') {
     $email = (Read-Host "   Email address (or just the part before @$MailDomain)").Trim()
     if ($email -and $email -notmatch '@') { $email = "$email@$MailDomain" }
