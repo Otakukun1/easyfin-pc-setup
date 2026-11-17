@@ -74,7 +74,7 @@ $resume = $null
 if ($env:EASYFIN_RESUME -and (Test-Path $ResumeFile)) {
     # Trusted only if an administrator run wrote it into the locked folder (see Initialize-LockedFolder).
     $resumeDir = Split-Path $ResumeFile
-    if (-not (Test-IsLink $resumeDir) -and -not (Test-IsLink $ResumeFile) -and (Test-AdminOwned $resumeDir) -and (Test-AdminOwned $ResumeFile)) {
+    if (-not (Test-IsLink $resumeDir) -and -not (Test-IsLink $ResumeFile) -and (Test-LockedFolder $resumeDir) -and (Test-AdminOwned $ResumeFile)) {
         try { $resume = Get-Content -Path $ResumeFile -Raw | ConvertFrom-Json } catch { $resume = $null }
     }
     Remove-Item -LiteralPath $ResumeFile -Force -ErrorAction SilentlyContinue

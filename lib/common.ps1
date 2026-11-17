@@ -24,23 +24,51 @@ function Test-AdminOwned {
     return ($global:EasyfinAdminSids -contains $sid)
 }
 
-# Administrators + SYSTEM full control, everyone else read only, owner Administrators. Files already in
-# it get the same. Links planted in it are removed (the link only, never what it points to).
+# True when only administrators can change the folder: owner Administrators/SYSTEM, nothing inherited,
+# and every other entry is read-only. If so, nothing in it can have been planted by a normal login.
+function Test-LockedFolder {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path) -or (Test-IsLink $Path) -or -not (Test-AdminOwned $Path)) { return $false }
+    $acl = Get-Acl -LiteralPath $Path
+    if (-not $acl.AreAccessRulesProtected) { return $false }
+    $write = [Security.AccessControl.FileSystemRights]'Write, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
+    foreach ($r in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+        if ("$($r.AccessControlType)" -ne 'Allow') { continue }
+        if ($global:EasyfinAdminSids -contains $r.IdentityReference.Value) { continue }
+        if (([int]$r.FileSystemRights -band [int]$write) -ne 0) { return $false }
+    }
+    return $true
+}
+
+# Makes $Path admin-only to change: a brand-new ACL (Administrators + SYSTEM full control, Users read),
+# owner Administrators. If the folder was NOT already locked, everything in it is deleted first - a
+# normal login may have planted files, hard links or links there (deleting removes the link, never
+# what it points to). Once locked, files written later are trustworthy and kept.
 function Initialize-LockedFolder {
     param([Parameter(Mandatory)][string]$Path)
     if (Test-IsLink $Path) { throw "$Path is a link to another place - not used." }
-    if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    & icacls.exe $Path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Could not lock the folder $Path." }
-    & icacls.exe $Path /setowner '*S-1-5-32-544' | Out-Null
-    foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
-        if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-            if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
-            continue
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    } elseif (-not (Test-LockedFolder $Path)) {
+        foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
+            if ($c.PSIsContainer) {
+                # Recursive delete of a junction would empty its target; delete the link itself instead.
+                if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) { [IO.Directory]::Delete($c.FullName) }
+                else { [IO.Directory]::Delete($c.FullName, $true) }
+            } else { [IO.File]::Delete($c.FullName) }
         }
-        & icacls.exe $c.FullName /reset /C | Out-Null
-        & icacls.exe $c.FullName /setowner '*S-1-5-32-544' /C | Out-Null
     }
+    $sid = { param($s) New-Object Security.Principal.SecurityIdentifier($s) }
+    $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    $none = [Security.AccessControl.PropagationFlags]::None
+    $acl = New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner((& $sid 'S-1-5-32-544'))
+    foreach ($r in @(@('S-1-5-32-544', 'FullControl'), @('S-1-5-18', 'FullControl'), @('S-1-5-32-545', 'ReadAndExecute'))) {
+        $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((& $sid $r[0]), [Security.AccessControl.FileSystemRights]$r[1], $inherit, $none, 'Allow')))
+    }
+    Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
+    if (-not (Test-LockedFolder $Path)) { throw "Could not lock the folder $Path." }
 }
 
 # ---------------------------------------------------------------- logging + output
