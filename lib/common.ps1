@@ -44,13 +44,15 @@ function Test-LockedFolder {
 # owner Administrators. Locks FIRST, then - only if it was not already locked - deletes every file and
 # link at the top level (a normal login may have planted files or hard links; deleting removes the link,
 # never what it points to). Real sub-folders are left alone and never used: emptying one could be
-# redirected while it runs. Once locked, files written later are trustworthy and kept.
+# redirected while it runs. "Clean" is proven by a marker file written only after every delete worked;
+# a lock without the marker (a clean-up that failed half way) is cleaned again next time.
 function Initialize-LockedFolder {
     param([Parameter(Mandatory)][string]$Path)
     if (Test-IsLink $Path) { throw "$Path is a link to another place - not used." }
-    $wasLocked = $false
+    $marker = Join-Path $Path '.locked-clean'
+    $wasClean = $false
     if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    else { $wasLocked = Test-LockedFolder $Path }
+    else { $wasClean = (Test-LockedFolder $Path) -and (Test-Path -LiteralPath $marker) -and -not (Test-IsLink $marker) -and (Test-AdminOwned $marker) }
     $sid = { param($s) New-Object Security.Principal.SecurityIdentifier($s) }
     $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
     $none = [Security.AccessControl.PropagationFlags]::None
@@ -62,13 +64,23 @@ function Initialize-LockedFolder {
     }
     Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
     if (-not (Test-LockedFolder $Path)) { throw "Could not lock the folder $Path." }
-    if (-not $wasLocked) {
-        foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
-            if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-                if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
-            } elseif (-not $c.PSIsContainer) { [IO.File]::Delete($c.FullName) }
+    if ($wasClean) { return }
+    foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop)) {
+        $isLink = [bool]($c.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        if ($c.PSIsContainer -and -not $isLink) { continue }
+        try {
+            if (-not $isLink) { [IO.File]::SetAttributes($c.FullName, [IO.FileAttributes]::Normal) }
+            if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
+        } catch {
+            # A planted file can carry its own "no delete" rules: take it over as administrators, then retry.
+            & icacls.exe $c.FullName /setowner '*S-1-5-32-544' /L /C | Out-Null
+            & icacls.exe $c.FullName /reset /L /C | Out-Null
+            if (-not $isLink) { [IO.File]::SetAttributes($c.FullName, [IO.FileAttributes]::Normal) }
+            if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
         }
     }
+    # Reached only when every delete above worked (any failure throws, so no marker and next run retries).
+    Set-Content -LiteralPath $marker -Value 'Emptied and locked by Easyfin PC Setup.' -Encoding ASCII
 }
 
 # ---------------------------------------------------------------- logging + output
