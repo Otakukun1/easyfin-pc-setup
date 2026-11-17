@@ -72,16 +72,24 @@ $ResumeFile = Join-Path $env:ProgramData 'Easyfin\resume.json'
 $ResumeTask = 'Easyfin PC Setup - carry on'
 $resume = $null
 if ($env:EASYFIN_RESUME -and (Test-Path $ResumeFile)) {
-    try { $resume = Get-Content -Path $ResumeFile -Raw | ConvertFrom-Json } catch { $resume = $null }
-    Remove-Item -Path $ResumeFile -Force -ErrorAction SilentlyContinue
+    # Trusted only if an administrator run wrote it into the locked folder (see Initialize-LockedFolder).
+    $resumeDir = Split-Path $ResumeFile
+    if (-not (Test-IsLink $resumeDir) -and -not (Test-IsLink $ResumeFile) -and (Test-AdminOwned $resumeDir) -and (Test-AdminOwned $ResumeFile)) {
+        try { $resume = Get-Content -Path $ResumeFile -Raw | ConvertFrom-Json } catch { $resume = $null }
+    }
+    Remove-Item -LiteralPath $ResumeFile -Force -ErrorAction SilentlyContinue
+    if ($resume -and ([string]$resume.PcName -notmatch '^[A-Za-z0-9-]{0,15}$')) { $resume = $null }
 }
 if ($env:EASYFIN_RESUME) {
     try { Unregister-ScheduledTask -TaskName $ResumeTask -Confirm:$false -ErrorAction Stop } catch { }
     $env:EASYFIN_RESUME = $null
 }
 if ($resume) {
-    $global:EasyfinPortal = [string]$resume.Portal
-    $global:EasyfinCode = [string]$resume.Code
+    $global:EasyfinPortal = $null; $global:EasyfinCode = $null
+    if ($resume.Portal -and $resume.Code -and (Test-PortalAddressAllowed ([string]$resume.Portal))) {
+        $global:EasyfinPortal = [string]$resume.Portal
+        $global:EasyfinCode = [string]$resume.Code
+    }
 }
 
 # Everything the event handlers share lives in this one object, so PowerShell scoping can't bite.
@@ -895,7 +903,8 @@ function Save-Resume {
         StaffName = $sync.StaffName; StaffEmail = $sync.StaffEmail; StaffId = $sync.StaffId
         Portal = $sync.Portal; Code = $sync.Code; PrevSteps = $prev; SavedAt = (Get-Date -Format 's')
     }
-    New-Item -ItemType Directory -Path (Split-Path $ResumeFile) -Force | Out-Null
+    Initialize-LockedFolder (Split-Path $ResumeFile)
+    if (Test-Path -LiteralPath $ResumeFile) { [IO.File]::Delete($ResumeFile) }
     ConvertTo-Json -InputObject $data -Depth 6 | Set-Content -Path $ResumeFile -Encoding UTF8
     & icacls.exe $ResumeFile /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' | Out-Null
 

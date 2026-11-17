@@ -5,6 +5,44 @@ $global:EasyfinRoot      = 'C:\Temp\Setup'
 $global:EasyfinDownloads = Join-Path $global:EasyfinRoot 'downloads'
 $global:EasyfinLogDir    = Join-Path $global:EasyfinRoot 'logs'
 
+# ---------------------------------------------------------------- folders an administrator run trusts
+
+# Setup runs as administrator but other logins can write to C:\Temp and to a fresh ProgramData folder.
+# Anything an admin run later reads back (policy files, resume.json) or deletes must sit in a folder
+# only administrators can change, or a normal login could plant, swap or redirect it first.
+$global:EasyfinAdminSids = @('S-1-5-32-544', 'S-1-5-18')   # Administrators, SYSTEM
+
+function Test-IsLink {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return [bool]($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint))
+}
+
+function Test-AdminOwned {
+    param([string]$Path)
+    try { $sid = (Get-Acl -LiteralPath $Path).GetOwner([Security.Principal.SecurityIdentifier]).Value } catch { return $false }
+    return ($global:EasyfinAdminSids -contains $sid)
+}
+
+# Administrators + SYSTEM full control, everyone else read only, owner Administrators. Files already in
+# it get the same. Links planted in it are removed (the link only, never what it points to).
+function Initialize-LockedFolder {
+    param([Parameter(Mandatory)][string]$Path)
+    if (Test-IsLink $Path) { throw "$Path is a link to another place - not used." }
+    if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
+    & icacls.exe $Path /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not lock the folder $Path." }
+    & icacls.exe $Path /setowner '*S-1-5-32-544' | Out-Null
+    foreach ($c in @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
+        if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            if ($c.PSIsContainer) { [IO.Directory]::Delete($c.FullName) } else { [IO.File]::Delete($c.FullName) }
+            continue
+        }
+        & icacls.exe $c.FullName /reset /C | Out-Null
+        & icacls.exe $c.FullName /setowner '*S-1-5-32-544' /C | Out-Null
+    }
+}
+
 # ---------------------------------------------------------------- logging + output
 
 function Initialize-SetupLog {

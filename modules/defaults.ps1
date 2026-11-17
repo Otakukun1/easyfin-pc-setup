@@ -10,7 +10,8 @@ if (-not $global:EasyfinSetupLoaded) {
 
 # Kept in ProgramData, not C:\Temp\Setup: the Windows policy below points at these files for every sign-in.
 $dir = Join-Path $env:ProgramData 'Easyfin'
-New-Item -ItemType Directory -Path $dir -Force | Out-Null
+# Windows reads these files at every sign-in, so only administrators may change them.
+Initialize-LockedFolder $dir
 
 function Save-IfChanged {
     param([string]$Path, [string]$Text)

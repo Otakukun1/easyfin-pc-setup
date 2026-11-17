@@ -118,7 +118,13 @@ try {
 Write-Step 'Removing leftover setup files'
 try {
     $freed = 0
-    if (Test-Path $global:EasyfinDownloads) {
+    # Only a folder this setup made: none of C:\Temp, C:\Temp\Setup, downloads may be a link elsewhere,
+    # and downloads must belong to administrators (a normal login could have made it first).
+    $safe = Test-Path $global:EasyfinDownloads
+    foreach ($p in @((Split-Path $global:EasyfinRoot), $global:EasyfinRoot, $global:EasyfinDownloads)) { if (Test-IsLink $p) { $safe = $false } }
+    if ($safe -and -not (Test-AdminOwned $global:EasyfinDownloads)) { $safe = $false }
+    if ((Test-Path $global:EasyfinDownloads) -and -not $safe) { Write-Warn 'Setup downloads left alone: that folder was not made by this setup. Delete C:\Temp\Setup\downloads by hand.' }
+    if ($safe) {
         # Keep the Office installer until Office 2013 is really in, so a re-run after a restart needn't download it again.
         $officeIn = [bool](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE' -ErrorAction SilentlyContinue) -or
                     [bool](Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE' -ErrorAction SilentlyContinue)
