@@ -362,16 +362,17 @@ function Get-PcIdentity {
 # Key = the name prefix, value = what is shown in the list. Keep in step with PORTAL-PLAN.md -
 # the portal's own branch codes (CW, BUD ...) are different and are NOT used in PC names.
 $Branches = [ordered]@{
-    'MIL-WORC' = 'Miloans Worcester';     'MIL-CAPE' = 'Miloans Cape Town';   'MIL-HAML' = 'Miloans Hamlet'
+    'MIL-WORC' = 'Miloans Worcester';     'MIL-CT'   = 'Miloans Ceres';       'MIL-HAML' = 'Miloans Hamlet'
     'MIL-WELL' = 'Miloans Wellington';    'MIL-STRA' = 'Miloans Strand';      'MIL-SWES' = 'Miloans Somerset West'
     'MIL-PAAR' = 'Miloans Paarl';         'MIL-TULB' = 'Miloans Tulbagh'
-    'QUA-DDOR' = 'Qualiloans De Doorns';  'QUA-VILL' = 'Qualiloans Villiersdorp'; 'QUA-CERE' = 'Qualiloans Ceres'
+    'QUA-DDOR' = 'Qualiloans De Doorns';  'QUA-VILL' = 'Qualiloans Villiersdorp'; 'QUA-CT'   = 'Qualiloans Ceres'
     'QUA-BRED' = 'Qualiloans Bredasdorp'; 'QUA-CALE' = 'Qualiloans Caledon'
     'BUD-WORC' = 'Budget Worcester';      'BUD-GANS' = 'Budget Gansbaai';     'BUD-WOLS' = 'Budget Wolseley'
     'BUD-ROBE' = 'Budget Robertson';      'BUD-ONLI' = 'Budget Online';       'QCK-WORC' = 'Quickloans Worcester'
     'TLG-HEID' = 'The Loan Guy Heidelberg'; 'TLG-SWEL' = 'The Loan Guy Swellendam'; 'TLG-GEOR' = 'The Loan Guy George'
     'TLG-KNYS' = 'The Loan Guy Knysna';   'TLG-KILL' = 'The Loan Guy Killarney'; 'TLG-MAIT' = 'The Loan Guy Maitland'
     'HO-WORC'  = 'Head Office Worcester'; 'WBDC-WORC' = 'Worcester Budget Debt Collection'
+    'EAS-CT'   = 'Easyfin Ceres'
 }
 # =============================================================================
 

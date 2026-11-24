@@ -35,7 +35,8 @@ foreach ($c in $Checks) {
 
 $pcName = Get-PendingName
 if (-not $pcName) { $pcName = $env:COMPUTERNAME }
-if ($pcName -match '^[A-Z]{2,4}-[A-Z]{4}-[LD]\d{2}$') { Write-Ok "PC name $pcName follows the naming rule." }
+# Same shape the portal accepts for a branch's PC name start (Admin BranchController): 2-5 + 2-5 letters/digits.
+if ($pcName -match '^[A-Z0-9]{2,5}-[A-Z0-9]{2,5}-[LD]\d{2}$') { Write-Ok "PC name $pcName follows the naming rule." }
 else { $missing += 'PC name'; Write-Fail "PC name $pcName does not follow the naming rule (e.g. MIL-WORC-L01)." }
 if ($pcName -ne $env:COMPUTERNAME) { Write-Warn "The new name $pcName only applies after a restart." }
 

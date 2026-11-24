@@ -35,7 +35,7 @@ Max 15 characters (Windows limit); longest here is 13. `L` laptop, `D` desktop, 
 | branches.code | Branch | PC name prefix |
 |---|---|---|
 | CW | Miloans CW (Worcester) | MIL-WORC |
-| MCT | Miloans CT | MIL-CAPE |
+| MCT | Miloans CT (Ceres) | MIL-CT (was MIL-CAPE until 24 Nov 2026) |
 | HAM | Hamlet | MIL-HAML |
 | WEL | Wellington | MIL-WELL |
 | STR | Strand | MIL-STRA |
@@ -44,7 +44,7 @@ Max 15 characters (Windows limit); longest here is 13. `L` laptop, `D` desktop, 
 | (Tulbagh - Nico added it, check its code) | Tulbagh | MIL-TULB |
 | DD | De Doorns | QUA-DDOR |
 | VIL | Villiersdorp | QUA-VILL |
-| CER | Ceres | QUA-CERE |
+| CER | Ceres | QUA-CT (was QUA-CERE until 24 Nov 2026; Easyfin Ceres = EAS-CT) |
 | BRE | Bredasdorp | QUA-BRED |
 | CAL | Caledon | QUA-CALE |
 | BUD | Budget CW (Worcester) | BUD-WORC |
