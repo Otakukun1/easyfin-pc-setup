@@ -11,7 +11,7 @@ Newest first.
   Picture is 1672x941 - a little soft on big screens.
 - Ceres PC names from the portal: MIL-CT, QUA-CT, QUA-ECT (Easyfin Ceres, Qualiloans group). Name check
   accepts what the portal accepts. Offline groups match the portal (Quickloans CW under Budget).
-- Everything is on the `test` GitHub copy only: `$env:EASYFIN_BRANCH='test';` line. Not on main.
+- Put on main the same day at Nico's request, before a real-PC test. Old main to go back to: 29184f6.
 
 ## 2026-11-17 — Major update (not uploaded - waits for one full test on a real PC)
 
