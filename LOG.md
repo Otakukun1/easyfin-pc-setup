@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-11-24 — New-look window, Miloans wallpaper, Ceres names (test copy only)
+
+- Window rebuilt as 4 pages (What / Which PC and who / Check / Setting up) with Back/Next, big cards,
+  one line per step with a tick or cross, technical details folded under "Show details". Demo pictures checked.
+- `modules/wallpaper.ps1` (menu 13, window step in both modes): Miloans picture from
+  assets/wallpapers/miloans.jpg for every login + new logins. Group from the portal, else PC name start.
+  Picture is 1672x941 - a little soft on big screens.
+- Ceres PC names from the portal: MIL-CT, QUA-CT, QUA-ECT (Easyfin Ceres, Qualiloans group). Name check
+  accepts what the portal accepts. Offline groups match the portal (Quickloans CW under Budget).
+- Everything is on the `test` GitHub copy only: `$env:EASYFIN_BRANCH='test';` line. Not on main.
+
 ## 2026-11-17 — Major update (not uploaded - waits for one full test on a real PC)
 
 - Window is now the main way in: `start.ps1` opens it (text menu with `$env:EASYFIN_MENU=1;`, or if
