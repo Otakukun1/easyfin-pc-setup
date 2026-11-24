@@ -14,7 +14,7 @@
 # the worker replaces Read-Host with a function that hands the question to the window.
 
 # ============================ EDIT HERE ============================
-$GuiVersion = '0.3'
+$GuiVersion = '0.4'
 $RepoBase   = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/main'
 # Test copies: $env:EASYFIN_BRANCH='test'; in front of the line takes every file from that GitHub branch.
 if ($env:EASYFIN_BRANCH -match '^[A-Za-z0-9._-]+$') { $RepoBase = 'https://raw.githubusercontent.com/Otakukun1/easyfin-pc-setup/' + $env:EASYFIN_BRANCH }
@@ -30,8 +30,10 @@ $Steps = @(
     @{ Key = 'updates';   Name = 'Install Windows updates';           PortalName = 'Windows updates';  Info = 'Slowest step - can take an hour';                           File = 'modules/windows-update.ps1';   On = $true;  Mode = 'new' }
     @{ Key = 'email';     Name = 'Add staff email to Outlook';        PortalName = 'Email account';    Info = 'Only when signed in to Windows as the staff member';        File = 'modules/email-account.ps1';    On = $false; Mode = 'new' }
     @{ Key = 'teams';     Name = 'Sign in to Teams (work or school)'; PortalName = 'Teams account';    Info = 'Only when signed in to Windows as the staff member';        File = 'modules/teams-account.ps1';    On = $false; Mode = 'new' }
+    @{ Key = 'wallpaper'; Name = 'Group wallpaper';                   PortalName = 'Wallpaper';        Info = 'Miloans PCs get the Miloans picture on the desktop';         File = 'modules/wallpaper.ps1';        On = $true;  Mode = 'new' }
     @{ Key = 'final';     Name = 'Final check and read-me';           PortalName = 'Final check';      Info = 'Checklist, activation, read-me on the Desktop, tidy up';     File = 'modules/handover.ps1';         On = $true;  Mode = 'new' }
     @{ Key = 'register';  Name = 'Record this PC';                    PortalName = 'Record this PC';   Info = 'Saves its details and who uses it. Installs and removes nothing'; File = 'modules/register-pc.ps1'; On = $true;  Mode = 'register' }
+    @{ Key = 'wallpaper2'; Name = 'Group wallpaper';                  PortalName = 'Wallpaper';        Info = 'Miloans PCs get the Miloans picture on the desktop';         File = 'modules/wallpaper.ps1';        On = $true;  Mode = 'register' }
 )
 # Steps that are about the staff member's own Windows login (ticked by "this login is theirs").
 $StaffLoginSteps = @('email', 'teams')
@@ -95,7 +97,7 @@ if ($resume) {
 # Everything the event handlers share lives in this one object, so PowerShell scoping can't bite.
 $state = @{ Mode = 'new'; Running = $false; Finished = $false; InfoIdx = 0; ErrIdx = 0; ProgIdx = 0; Progress = @{}; StepUi = @{}
             Ps = $null; Sync = $null; Picked = @(); Linked = $false; Loading = $false; Session = $null; Existing = $null
-            ExistingNote = ''; UseExistingTag = $null; CodeByPrefix = @{}; StaffFor = $null; EmailById = @{}; Round = 1 }
+            ExistingNote = ''; UseExistingTag = $null; CodeByPrefix = @{}; StaffFor = $null; EmailById = @{}; Round = 1; RunUi = @{}; Page = 0; ModeHint = '' }
 
 # --- portal link: check the code before showing anything, so a bad code is caught up front
 function Stop-PortalLink { $global:EasyfinCode = $null; $state.Linked = $false }
@@ -144,110 +146,263 @@ if ($state.Linked -and -not $resume) {
 $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Easyfin PC Setup" Width="1020" Height="760" MinWidth="920" MinHeight="640"
-        WindowStartupLocation="CenterScreen" Background="#F4F6F8" FontFamily="Segoe UI" FontSize="14">
+        Title="Easyfin PC Setup" Width="1000" Height="740" MinWidth="900" MinHeight="640"
+        WindowStartupLocation="CenterScreen" Background="#F3F6F8" FontFamily="Segoe UI" FontSize="14" Foreground="#1C2B33">
+  <Window.Resources>
+    <Style x:Key="Primary" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Background" Value="#0F4C5C"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Padding" Value="28,11"/>
+      <Setter Property="Margin" Value="10,0,0,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#0B3A47"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Background" Value="#A9BCC2"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Secondary" TargetType="Button">
+      <Setter Property="Foreground" Value="#0F4C5C"/>
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Padding" Value="22,10"/>
+      <Setter Property="Margin" Value="10,0,0,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="#C9D5DB" BorderThickness="1.5" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#EAF3F5"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Card" TargetType="RadioButton">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="B" Background="White" BorderBrush="#DCE3E8" BorderThickness="2" CornerRadius="12" Padding="24,20" Margin="0,0,0,14">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7FB2BF"/></Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="B" Property="BorderBrush" Value="#0F4C5C"/>
+                <Setter TargetName="B" Property="Background" Value="#EAF4F6"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Panel" TargetType="Border">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderBrush" Value="#E1E7EB"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="22,18"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#5A6B75"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Margin" Value="0,12,0,5"/>
+    </Style>
+    <Style x:Key="PanelTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="17"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="BorderBrush" Value="#C9D5DB"/>
+    </Style>
+    <Style TargetType="PasswordBox">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="BorderBrush" Value="#C9D5DB"/>
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="MinHeight" Value="34"/>
+    </Style>
+    <Style x:Key="Pill" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Margin" Value="0,0,26,0"/>
+      <Setter Property="Opacity" Value="0.5"/>
+    </Style>
+  </Window.Resources>
+
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="#0F4C5C" Padding="24,14">
+    <Border Grid.Row="0" Padding="30,18,30,14">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+          <GradientStop Color="#0B3A47" Offset="0"/><GradientStop Color="#13687C" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
       <StackPanel>
         <TextBlock x:Name="TitleText" Text="Easyfin PC Setup" Foreground="White" FontSize="24" FontWeight="SemiBold"/>
-        <TextBlock x:Name="PcLine" Foreground="#CFE3E8" Margin="0,4,0,0"/>
-        <TextBlock x:Name="PortalLine" Foreground="#9FE0B5" Margin="0,2,0,0"/>
+        <TextBlock x:Name="PcLine" Foreground="#CFE3E8" FontSize="12.5" Margin="0,3,0,0"/>
+        <TextBlock x:Name="PortalLine" Foreground="#9FE0B5" FontSize="12.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+          <TextBlock x:Name="Pill0" Style="{StaticResource Pill}" Text="1  What"/>
+          <TextBlock x:Name="Pill1" Style="{StaticResource Pill}" Text="2  Which PC and who"/>
+          <TextBlock x:Name="Pill2" Style="{StaticResource Pill}" Text="3  Check"/>
+          <TextBlock x:Name="Pill3" Style="{StaticResource Pill}" Text="4  Setting up"/>
+        </StackPanel>
       </StackPanel>
     </Border>
 
-    <Grid Grid.Row="1" Margin="20,16,20,16">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="390"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/>
-      </Grid.ColumnDefinitions>
+    <Grid Grid.Row="1">
 
-      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="LeftPanel" Margin="0,0,6,0">
-          <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,16">
-            <StackPanel>
-              <RadioButton x:Name="ModeNew" GroupName="mode" IsChecked="True" Margin="0,2,0,2">
-                <StackPanel>
-                  <TextBlock Text="New PC - full setup" FontWeight="SemiBold"/>
-                  <TextBlock Text="Cleans it, installs everything, names it" Foreground="#5A6B75" FontSize="12"/>
-                </StackPanel>
-              </RadioButton>
-              <RadioButton x:Name="ModeReg" GroupName="mode" Margin="0,8,0,2">
-                <StackPanel>
-                  <TextBlock Text="PC already in use - just record it" FontWeight="SemiBold"/>
-                  <TextBlock Text="Takes a minute. Installs and removes nothing" Foreground="#5A6B75" FontSize="12"/>
-                </StackPanel>
-              </RadioButton>
-            </StackPanel>
-          </Border>
-
-          <TextBlock Text="1. Which PC is this?" FontWeight="SemiBold" FontSize="16"/>
-          <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,8,0,16">
-            <StackPanel>
-              <TextBlock x:Name="ExistingText" Foreground="#0F4C5C" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
-              <TextBlock Text="Group" Foreground="#5A6B75"/>
-              <ComboBox x:Name="GroupBox" Margin="0,4,0,10" Padding="6,4"/>
-              <TextBlock Text="Branch" Foreground="#5A6B75"/>
-              <ComboBox x:Name="BranchBox" Margin="0,4,0,12" Padding="6,4"/>
-              <StackPanel Orientation="Horizontal">
-                <RadioButton x:Name="KindL" Content="Laptop" GroupName="kind" Margin="0,0,18,0" VerticalAlignment="Center"/>
-                <RadioButton x:Name="KindD" Content="Desktop" GroupName="kind" VerticalAlignment="Center"/>
-                <TextBlock Text="PC number" Margin="28,0,8,0" VerticalAlignment="Center" Foreground="#5A6B75"/>
-                <TextBox x:Name="NumBox" Width="46" Text="1" Padding="4,2" VerticalAlignment="Center"/>
+      <!-- page 1: what are we doing -->
+      <ScrollViewer x:Name="Page0" VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="720" Margin="28,30,28,20">
+          <TextBlock Text="What are we doing today?" FontSize="26" FontWeight="SemiBold"/>
+          <TextBlock Text="Pick one and press Next." Foreground="#5A6B75" Margin="0,6,0,20"/>
+          <TextBlock x:Name="ExistingText" Background="#FFF6DE" Foreground="#6B4E00" Padding="16,12" Margin="0,0,0,16" TextWrapping="Wrap" Visibility="Collapsed"/>
+          <RadioButton x:Name="ModeNew" Style="{StaticResource Card}" GroupName="mode" IsChecked="True">
+            <StackPanel Orientation="Horizontal">
+              <Border Width="56" Height="56" CornerRadius="28" Background="#DDEEF2" Margin="0,0,20,0">
+                <TextBlock Text="&#xE977;" FontFamily="Segoe MDL2 Assets" FontSize="24" Foreground="#0F4C5C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Set up a new PC" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Cleans it, installs everything, names it and gets it ready for the staff member." Foreground="#5A6B75" TextWrapping="Wrap" MaxWidth="540" Margin="0,3,0,0"/>
               </StackPanel>
-              <TextBlock x:Name="NamePreview" Margin="0,12,0,8" FontSize="16" FontWeight="SemiBold" Foreground="#0F4C5C" TextWrapping="Wrap"/>
-              <CheckBox x:Name="KeepName" Content="Keep the name it has now"/>
-              <CheckBox x:Name="RenameBox" Content="Rename the PC to this now (after a restart)" IsChecked="True" Visibility="Collapsed"/>
-              <TextBlock Text="Who uses this PC?" Foreground="#5A6B75" Margin="0,14,0,0"/>
-              <TextBox x:Name="UsedByBox" Margin="0,4,0,2" Padding="4,2"/>
-              <ComboBox x:Name="UsedByCombo" Margin="0,4,0,2" Padding="6,4" Visibility="Collapsed"/>
-              <TextBlock x:Name="UsedByHint" Text="Leave empty if it is shared or nobody has it yet." Foreground="#8A979E" FontSize="12" TextWrapping="Wrap"/>
-              <TextBlock Text="Their work email (for Outlook and Teams)" Foreground="#5A6B75" Margin="0,12,0,0"/>
-              <TextBox x:Name="StaffEmailBox" Margin="0,4,0,2" Padding="4,2"/>
-              <CheckBox x:Name="StaffLoginBox" Margin="0,10,0,0">
-                <TextBlock TextWrapping="Wrap" Text="I am signed in to Windows as this staff member (also sets up their email and Teams)"/>
-              </CheckBox>
             </StackPanel>
-          </Border>
-
-          <TextBlock Text="2. What should be done?" FontWeight="SemiBold" FontSize="16"/>
-          <Border Background="White" BorderBrush="#DDE3E7" BorderThickness="1" CornerRadius="6" Padding="14,8" Margin="0,8,0,16">
-            <StackPanel x:Name="StepsPanel"/>
-          </Border>
-
-          <StackPanel x:Name="PwPanel">
-            <TextBlock Text="3. Setup password" FontWeight="SemiBold" FontSize="16"/>
-            <TextBlock Text="Only needed for Office." Foreground="#5A6B75" Margin="0,2,0,6"/>
-            <PasswordBox x:Name="PwBox" Padding="6,4"/>
-          </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="ModeReg" Style="{StaticResource Card}" GroupName="mode">
+            <StackPanel Orientation="Horizontal">
+              <Border Width="56" Height="56" CornerRadius="28" Background="#EEE9DD" Margin="0,0,20,0">
+                <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="24" Foreground="#7A5B12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="This PC is already in use - just record it" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Takes a minute. Saves its details and who uses it. Installs and removes nothing." Foreground="#5A6B75" TextWrapping="Wrap" MaxWidth="540" Margin="0,3,0,0"/>
+              </StackPanel>
+            </StackPanel>
+          </RadioButton>
         </StackPanel>
       </ScrollViewer>
 
-      <Grid Grid.Column="2">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        <TextBlock x:Name="Activity" Grid.Row="0" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Text="Ready when you are"/>
-        <TextBlock x:Name="SubStatus" Grid.Row="1" Foreground="#5A6B75" TextWrapping="Wrap" Margin="0,4,0,0"
-                   Text="Choose on the left, then press Start."/>
-        <ProgressBar x:Name="Bar" Grid.Row="2" Height="14" Margin="0,12,0,12" Minimum="0" Maximum="100"/>
-        <Border Grid.Row="3" Background="#12181C" CornerRadius="6" Padding="6">
-          <RichTextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent" BorderThickness="0"
-                       Foreground="#D7DEE2" FontFamily="Consolas" FontSize="12.5" VerticalScrollBarVisibility="Auto"/>
-        </Border>
-      </Grid>
+      <!-- page 2: which PC and who -->
+      <ScrollViewer x:Name="Page1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+        <Grid MaxWidth="900" Margin="28,26,28,20">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,18">
+            <TextBlock Text="Which PC is this, and who uses it?" FontSize="26" FontWeight="SemiBold"/>
+            <TextBlock x:Name="WhoHint" Text="Pick the branch and the person." Foreground="#5A6B75" Margin="0,6,0,0"/>
+          </StackPanel>
+          <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Panel}" VerticalAlignment="Top">
+            <StackPanel x:Name="LeftPanel">
+              <TextBlock Text="The PC" Style="{StaticResource PanelTitle}"/>
+              <TextBlock Text="Group" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="GroupBox"/>
+              <TextBlock Text="Branch" Style="{StaticResource Label}"/>
+              <ComboBox x:Name="BranchBox"/>
+              <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                <RadioButton x:Name="KindL" Content="Laptop" GroupName="kind" Margin="0,0,18,0" VerticalAlignment="Center"/>
+                <RadioButton x:Name="KindD" Content="Desktop" GroupName="kind" VerticalAlignment="Center"/>
+                <TextBlock Text="Number" Margin="26,0,8,0" VerticalAlignment="Center" Foreground="#5A6B75"/>
+                <TextBox x:Name="NumBox" Width="50" Text="1" VerticalAlignment="Center" HorizontalContentAlignment="Center"/>
+              </StackPanel>
+              <Border Background="#EAF4F6" CornerRadius="8" Padding="14,10" Margin="0,16,0,8">
+                <TextBlock x:Name="NamePreview" FontSize="17" FontWeight="SemiBold" Foreground="#0F4C5C" TextWrapping="Wrap"/>
+              </Border>
+              <CheckBox x:Name="KeepName" Content="Keep the name it has now" Margin="0,4,0,0"/>
+              <CheckBox x:Name="RenameBox" Content="Rename the PC to this now (after a restart)" IsChecked="True" Visibility="Collapsed" Margin="0,4,0,0"/>
+            </StackPanel>
+          </Border>
+          <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" VerticalAlignment="Top">
+            <StackPanel>
+              <TextBlock Text="Who uses it" Style="{StaticResource PanelTitle}"/>
+              <TextBlock Text="Name" Style="{StaticResource Label}"/>
+              <TextBox x:Name="UsedByBox"/>
+              <ComboBox x:Name="UsedByCombo" Visibility="Collapsed"/>
+              <TextBlock x:Name="UsedByHint" Text="Leave empty if it is shared or nobody has it yet." Foreground="#8A979E" FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <TextBlock Text="Work email (for Outlook and Teams)" Style="{StaticResource Label}"/>
+              <TextBox x:Name="StaffEmailBox"/>
+              <CheckBox x:Name="StaffLoginBox" Margin="0,16,0,0">
+                <TextBlock TextWrapping="Wrap" Text="I am signed in to Windows as this person - also set up their email and Teams"/>
+              </CheckBox>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </ScrollViewer>
+
+      <!-- page 3: check -->
+      <ScrollViewer x:Name="Page2" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+        <StackPanel MaxWidth="760" Margin="28,26,28,20">
+          <TextBlock Text="Here is what will happen" FontSize="26" FontWeight="SemiBold"/>
+          <TextBlock Text="It is already ticked the way it should be. Only untick something if you know why." Foreground="#5A6B75" Margin="0,6,0,18" TextWrapping="Wrap"/>
+          <Border Style="{StaticResource Panel}" Padding="22,10">
+            <StackPanel x:Name="StepsPanel"/>
+          </Border>
+          <Border x:Name="PwPanel" Style="{StaticResource Panel}" Margin="0,16,0,0">
+            <StackPanel>
+              <TextBlock Text="Setup password" Style="{StaticResource PanelTitle}"/>
+              <TextBlock Text="Only needed for Office." Foreground="#5A6B75" Margin="0,3,0,8"/>
+              <PasswordBox x:Name="PwBox" MaxWidth="320" HorizontalAlignment="Left" Width="320"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- page 4: setting up / done -->
+      <ScrollViewer x:Name="Page3" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+        <StackPanel MaxWidth="760" Margin="28,26,28,20">
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="BigIconBack" Width="64" Height="64" CornerRadius="32" Background="#DDEEF2" Margin="0,0,20,0" VerticalAlignment="Top">
+              <TextBlock x:Name="BigIcon" Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="#0F4C5C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <StackPanel VerticalAlignment="Center" MaxWidth="640">
+              <TextBlock x:Name="Activity" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" Text="Ready when you are"/>
+              <TextBlock x:Name="SubStatus" Foreground="#5A6B75" TextWrapping="Wrap" Margin="0,4,0,0" Text="Choose on the left, then press Start."/>
+            </StackPanel>
+          </StackPanel>
+          <ProgressBar x:Name="Bar" Height="10" Margin="0,22,0,20" Minimum="0" Maximum="100" Foreground="#13687C" Background="#E1E8EC" BorderThickness="0"/>
+          <Border Style="{StaticResource Panel}" Padding="22,8">
+            <StackPanel x:Name="RunList"/>
+          </Border>
+          <Expander x:Name="DetailsExp" Header="Show details" Margin="0,16,0,0" Foreground="#5A6B75">
+            <Border Background="#12181C" CornerRadius="8" Padding="8" Margin="0,8,0,0" Height="280">
+              <RichTextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                           Foreground="#D7DEE2" FontFamily="Consolas" FontSize="12.5" VerticalScrollBarVisibility="Auto"/>
+            </Border>
+          </Expander>
+        </StackPanel>
+      </ScrollViewer>
     </Grid>
 
-    <Border Grid.Row="2" Background="White" BorderBrush="#DDE3E7" BorderThickness="0,1,0,0" Padding="20,12">
+    <Border Grid.Row="2" Background="White" BorderBrush="#E1E7EB" BorderThickness="0,1,0,0" Padding="28,14">
       <DockPanel>
+        <Button x:Name="BackBtn" DockPanel.Dock="Left" Style="{StaticResource Secondary}" Margin="0,0,16,0" Content="Back" Visibility="Collapsed"/>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-          <Button x:Name="RestartBtn" Content="Restart PC now" Padding="18,8" Margin="0,0,10,0" Visibility="Collapsed"/>
-          <Button x:Name="StartBtn" Content="Start setup" Padding="26,8" FontWeight="SemiBold" Background="#0F4C5C" Foreground="White" BorderThickness="0"/>
+          <Button x:Name="RestartBtn" Style="{StaticResource Secondary}" Content="Restart PC now" Visibility="Collapsed"/>
+          <Button x:Name="NextBtn" Style="{StaticResource Primary}" Content="Next"/>
+          <Button x:Name="StartBtn" Style="{StaticResource Primary}" Content="Start setup" Visibility="Collapsed"/>
         </StackPanel>
-        <TextBlock x:Name="Hint" VerticalAlignment="Center" Foreground="#5A6B75" TextWrapping="Wrap" Margin="0,0,16,0"
-                   Text="After you press Start you can walk away. It only stops when it needs a click from you."/>
+        <TextBlock x:Name="Hint" VerticalAlignment="Center" Foreground="#5A6B75" TextWrapping="Wrap" Margin="0,0,16,0"/>
       </DockPanel>
     </Border>
   </Grid>
@@ -258,7 +413,9 @@ $window = [Windows.Markup.XamlReader]::Parse($xaml)
 $ui = @{}
 foreach ($n in 'TitleText', 'PcLine', 'PortalLine', 'ExistingText', 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'NamePreview', 'KeepName',
                'StepsPanel', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'UsedByHint', 'PwPanel', 'StaffEmailBox', 'StaffLoginBox',
-               'Activity', 'SubStatus', 'Bar', 'LogBox', 'RestartBtn', 'StartBtn', 'Hint', 'LeftPanel') { $ui[$n] = $window.FindName($n) }
+               'Activity', 'SubStatus', 'Bar', 'LogBox', 'RestartBtn', 'StartBtn', 'Hint', 'LeftPanel',
+               'Page0', 'Page1', 'Page2', 'Page3', 'Pill0', 'Pill1', 'Pill2', 'Pill3', 'BackBtn', 'NextBtn', 'WhoHint',
+               'RunList', 'BigIcon', 'BigIconBack', 'DetailsExp') { $ui[$n] = $window.FindName($n) }
 
 # --- header
 $cs = Get-CimInstance Win32_ComputerSystem
@@ -461,7 +618,7 @@ Update-NamePreview
 # --- section 2: one row per step = tick box + status word
 foreach ($s in $Steps) {
     $row = New-Object Windows.Controls.Grid
-    $row.Margin = '0,6,0,6'
+    $row.Margin = '0,9,0,9'
     $c1 = New-Object Windows.Controls.ColumnDefinition
     $c2 = New-Object Windows.Controls.ColumnDefinition; $c2.Width = 'Auto'
     [void]$row.ColumnDefinitions.Add($c1); [void]$row.ColumnDefinitions.Add($c2)
@@ -469,8 +626,9 @@ foreach ($s in $Steps) {
     $info = $s.Info
     if ($s.Key -eq 'office' -and $state.Linked -and $global:EasyfinPortal -like 'https://*') { $info = 'Download link comes from the portal' }
     $text = New-Object Windows.Controls.StackPanel
-    $t1 = New-Object Windows.Controls.TextBlock; $t1.Text = $s.Name; $t1.FontWeight = 'SemiBold'
-    $t2 = New-Object Windows.Controls.TextBlock; $t2.Text = $info; $t2.Foreground = '#5A6B75'; $t2.FontSize = 12; $t2.TextWrapping = 'Wrap'
+    $t1 = New-Object Windows.Controls.TextBlock; $t1.Text = $s.Name; $t1.FontWeight = 'SemiBold'; $t1.FontSize = 15
+    $t2 = New-Object Windows.Controls.TextBlock; $t2.Text = $info; $t2.Foreground = '#5A6B75'; $t2.FontSize = 12.5; $t2.TextWrapping = 'Wrap'; $t2.Margin = '0,2,0,0'
+    $text.Margin = '6,0,0,0'
     [void]$text.Children.Add($t1); [void]$text.Children.Add($t2)
     $cb = New-Object Windows.Controls.CheckBox; $cb.Content = $text; $cb.IsChecked = $s.On
     [Windows.Controls.Grid]::SetColumn($cb, 0)
@@ -500,20 +658,59 @@ function Update-Mode {
         $ui.KeepName.Visibility = 'Collapsed'; $ui.RenameBox.Visibility = 'Visible'; $ui.PwPanel.Visibility = 'Collapsed'
         $ui.StaffLoginBox.Visibility = 'Collapsed'
         $ui.StartBtn.Content = 'Record this PC'
-        $ui.Hint.Text = 'Renaming a PC that is in use can break shared printers or folders that other PCs reach by its old name. Untick "Rename" if unsure.'
+        $state.ModeHint = 'Renaming a PC that is in use can break shared printers or folders that other PCs reach by its old name.'
     } else {
         $ui.RenameBox.Visibility = 'Collapsed'
         $ui.StaffLoginBox.Visibility = 'Visible'
         if (-not $state.Linked) { $ui.KeepName.Visibility = 'Visible' }
         if (-not ($state.Linked -and $global:EasyfinPortal -like 'https://*')) { $ui.PwPanel.Visibility = 'Visible' }
         $ui.StartBtn.Content = 'Start setup'
-        $ui.Hint.Text = 'After you press Start you can walk away. It only stops when it needs a click from you.'
+        $state.ModeHint = 'After you press Start you can walk away. It only stops when it needs a click from you.'
     }
     Update-NamePreview
 }
 $ui.ModeNew.Add_Checked({ Update-Mode })
 $ui.ModeReg.Add_Checked({ Update-Mode })
 Update-Mode
+
+# --- the four pages: what, which PC and who, check, setting up. Only one shows at a time.
+$PageHints = @('A new PC takes about an hour. You can walk away once it starts.', 'The portal fills in what it can.', '', '')
+function Show-Page {
+    param([int]$N)
+    $state.Page = $N
+    for ($i = 0; $i -lt 4; $i++) {
+        $vis = 'Collapsed'; if ($i -eq $N) { $vis = 'Visible' }
+        $ui["Page$i"].Visibility = $vis
+        $pill = $ui["Pill$i"]
+        if ($i -eq $N) { $pill.Opacity = 1; $pill.FontWeight = 'SemiBold' }
+        elseif ($i -lt $N) { $pill.Opacity = 0.8; $pill.FontWeight = 'Normal' }
+        else { $pill.Opacity = 0.45; $pill.FontWeight = 'Normal' }
+    }
+    $back = 'Collapsed'; if ($N -eq 1 -or $N -eq 2) { $back = 'Visible' }
+    $ui.BackBtn.Visibility = $back
+    $next = 'Collapsed'; if ($N -lt 2) { $next = 'Visible' }
+    $ui.NextBtn.Visibility = $next
+    $start = 'Collapsed'; if ($N -ge 2) { $start = 'Visible' }
+    $ui.StartBtn.Visibility = $start
+    if ($N -eq 2) { $ui.Hint.Text = $state.ModeHint } elseif ($N -lt 2) { $ui.Hint.Text = $PageHints[$N] }
+    if ($N -eq 1) {
+        if ($state.Mode -eq 'register') { $ui.WhoHint.Text = 'Pick its branch and who uses it. Untick "Rename" to leave its name alone.' }
+        else { $ui.WhoHint.Text = 'Pick the branch and the person. The PC gets its name from the branch.' }
+    }
+}
+
+$ui.NextBtn.Add_Click({
+    if ($state.Page -eq 0) { Show-Page 1; return }
+    if ($state.Page -eq 1) {
+        $needName = $state.Linked -or $state.Mode -eq 'register' -or $state.StepUi['pc'].Check.IsChecked
+        if ($needName -and -not (Get-NewPcName)) { [void][Windows.MessageBox]::Show($window, 'Pick a branch and a PC number (1-99).', 'Easyfin PC Setup', 'OK', 'Information'); return }
+        $mail = $ui.StaffEmailBox.Text.Trim()
+        if ($mail -and $mail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { [void][Windows.MessageBox]::Show($window, 'The work email does not look right. Fix it or leave it empty.', 'Easyfin PC Setup', 'OK', 'Information'); return }
+        Show-Page 2
+    }
+})
+$ui.BackBtn.Add_Click({ if ($state.Page -gt 0 -and -not $state.Running) { Show-Page ($state.Page - 1) } })
+Show-Page 0
 if ($state.Linked -and $ui.BranchBox.SelectedItem) { Update-Suggestion }
 
 # --- log box
@@ -593,6 +790,7 @@ try {
     $global:EasyfinStaffEmail = [string]$sync.StaffEmail
     if ($sync.StaffId) { $global:EasyfinEmployeeId = [int]$sync.StaffId }
     $global:EasyfinLoginConfirmed = [bool]$sync.LoginConfirmed
+    $global:EasyfinGroup = [string]$sync.Group
     if ($sync.Mode -eq 'register') { $global:EasyfinRename = [bool]$sync.Rename }
     if ($sync.Password) {
         $sec = New-Object Security.SecureString
@@ -677,8 +875,21 @@ try {
 }
 '@
 
+# Waiting / working / done / failed marks for the "Setting up" page.
+$Marks = @{ Waiting = [string][char]0x25CB; Working = [string][char]0x25D4; Done = [string][char]0x2713; Failed = [string][char]0x2715 }
 function Set-StepStatus {
     param([string]$Key, [string]$Word)
+    $run = $state.RunUi[$Key]
+    if ($run) {
+        $mark = $Marks[$Word]; if (-not $mark) { $mark = $Marks.Waiting }
+        $run.Mark.Text = $mark
+        $words = @{ Waiting = 'Waiting'; Working = 'Busy...'; Done = 'Done'; Failed = 'Did not work' }
+        $run.Word.Text = $words[$Word]
+        $colour = '#8A979E'
+        switch ($Word) { 'Working' { $colour = '#13687C' } 'Done' { $colour = '#1E8E4E' } 'Failed' { $colour = '#C0392B' } }
+        $run.Mark.Foreground = $colour; $run.Word.Foreground = $colour
+        if ($Word -eq 'Working') { $run.Name.FontWeight = 'SemiBold' } else { $run.Name.FontWeight = 'Normal' }
+    }
     $t = $state.StepUi[$Key].Status
     $t.Text = $Word
     switch ($Word) {
@@ -698,15 +909,22 @@ function Complete-Run {
     $failed = @($state.Picked | Where-Object { $sync.Status[$_.Key] -eq 'Failed' })
     $ui.Bar.IsIndeterminate = $false
     $ui.Bar.Value = 100
+    $ok = (-not $sync.Fatal) -and $failed.Count -eq 0
+    if ($ok) {
+        $ui.BigIcon.Text = [string][char]0xE73E; $ui.BigIcon.Foreground = '#1E8E4E'; $ui.BigIconBack.Background = '#E2F4E9'
+    } else {
+        $ui.BigIcon.Text = [string][char]0xE7BA; $ui.BigIcon.Foreground = '#C0392B'; $ui.BigIconBack.Background = '#FBE7E4'
+        $ui.DetailsExp.IsExpanded = $true
+    }
     if ($sync.Fatal) {
         $ui.Activity.Text = 'Setup could not start'
         $ui.SubStatus.Text = $sync.Fatal
     } elseif ($failed.Count -eq 0) {
-        $ui.Activity.Text = "Finished - all $done steps done"; if ($done -eq 1) { $ui.Activity.Text = 'Finished - done' }
-        $ui.SubStatus.Text = 'Everything worked.'
+        $ui.Activity.Text = 'All done'
+        $ui.SubStatus.Text = "Everything worked ($done of $done)."
     } else {
-        $ui.Activity.Text = "Finished - $done done, $($failed.Count) failed"
-        $ui.SubStatus.Text = 'Failed: ' + (($failed | ForEach-Object { $_.Name }) -join ', ') + '. The reason is in red in the box below.'
+        $ui.Activity.Text = "Done, but $($failed.Count) thing(s) did not work"
+        $ui.SubStatus.Text = 'Did not work: ' + (($failed | ForEach-Object { $_.Name }) -join ', ') + '. The reason is in red in the details below.'
     }
     if ($sync.PortalResult) {
         $ui.SubStatus.Text += "  " + $sync.PortalResult
@@ -726,6 +944,7 @@ function Complete-Run {
         if ($again.Count -gt 0) { $ui.RestartBtn.Content = 'Restart and carry on' } else { $ui.RestartBtn.Content = 'Restart PC now' }
         $ui.RestartBtn.Visibility = 'Visible'
     }
+    $ui.Page3.ScrollToTop()
 }
 
 $timer = New-Object Windows.Threading.DispatcherTimer
@@ -827,6 +1046,7 @@ $ui.StartBtn.Add_Click({
         PcName = $pcName; Password = $ui.PwBox.Password; UsedBy = $usedBy; Rename = [bool]$ui.RenameBox.IsChecked
         BranchCode = (Get-SelectedCode); Kind = (Get-Kind); EmployeeMode = $empMode; EmployeeId = $empId
         StaffName = $usedBy; StaffEmail = $staffEmail; StaffId = $staffId; LoginConfirmed = $loginIsStaff; PrevSteps = @()
+        Group = [string]$ui.GroupBox.SelectedItem
     }
 })
 
@@ -838,7 +1058,7 @@ function Start-Run {
         Mode = $state.Mode; UsedBy = $Choice.UsedBy; Rename = [bool]$Choice.Rename
         Portal = $null; Code = $null; BranchCode = $Choice.BranchCode; Kind = $Choice.Kind; EmployeeMode = $Choice.EmployeeMode; EmployeeId = $Choice.EmployeeId
         StaffName = $Choice.StaffName; StaffEmail = $Choice.StaffEmail; StaffId = $Choice.StaffId; LoginConfirmed = [bool]$Choice.LoginConfirmed
-        PrevSteps = @($Choice.PrevSteps)
+        PrevSteps = @($Choice.PrevSteps); Group = [string]$Choice.Group
         GuiVersion = $GuiVersion; PortalResult = $null; PortalFailed = $false
         LocalRoot = $LocalRoot; RepoBase = $RepoBase
         Status = [hashtable]::Synchronized(@{}); Detail = [hashtable]::Synchronized(@{})
@@ -852,8 +1072,26 @@ function Start-Run {
     foreach ($c in 'GroupBox', 'BranchBox', 'KindL', 'KindD', 'NumBox', 'KeepName', 'PwBox', 'ModeNew', 'ModeReg', 'RenameBox', 'UsedByBox', 'UsedByCombo', 'StaffEmailBox', 'StaffLoginBox') { $ui[$c].IsEnabled = $false }
     $ui.StartBtn.IsEnabled = $false
     $ui.StartBtn.Content = 'Working...'
-    $ui.Hint.Text = 'You can walk away. It only stops when it needs a click from you. Do not close this window.'
     $ui.Bar.IsIndeterminate = $true
+
+    # One line per step on the "Setting up" page.
+    $ui.RunList.Children.Clear()
+    $state.RunUi = @{}
+    foreach ($p in $Picked) {
+        $row = New-Object Windows.Controls.Grid; $row.Margin = '0,8,0,8'
+        foreach ($w in @('34', '*', 'Auto')) { $cd = New-Object Windows.Controls.ColumnDefinition; $cd.Width = $w; [void]$row.ColumnDefinitions.Add($cd) }
+        $mark = New-Object Windows.Controls.TextBlock; $mark.FontSize = 18; $mark.VerticalAlignment = 'Center'
+        $name = New-Object Windows.Controls.TextBlock; $name.Text = $p.Name; $name.FontSize = 15; $name.VerticalAlignment = 'Center'
+        $word = New-Object Windows.Controls.TextBlock; $word.FontSize = 13; $word.VerticalAlignment = 'Center'
+        [Windows.Controls.Grid]::SetColumn($name, 1); [Windows.Controls.Grid]::SetColumn($word, 2)
+        [void]$row.Children.Add($mark); [void]$row.Children.Add($name); [void]$row.Children.Add($word)
+        [void]$ui.RunList.Children.Add($row)
+        $state.RunUi[$p.Key] = @{ Mark = $mark; Name = $name; Word = $word }
+        Set-StepStatus $p.Key 'Waiting'
+    }
+    Show-Page 3
+    $ui.BackBtn.Visibility = 'Collapsed'
+    $ui.Hint.Text = 'You can walk away. It only stops when it needs a click from you. Do not close this window.'
 
     $rs = [runspacefactory]::CreateRunspace()
     $rs.ApartmentState = 'STA'
@@ -901,7 +1139,7 @@ function Save-Resume {
         Round = $state.Round + 1; Steps = $againKeys; Mode = $state.Mode
         PcName = $sync.PcName; UsedBy = $sync.UsedBy; BranchCode = $sync.BranchCode; Kind = $sync.Kind
         EmployeeMode = $sync.EmployeeMode; EmployeeId = $sync.EmployeeId
-        StaffName = $sync.StaffName; StaffEmail = $sync.StaffEmail; StaffId = $sync.StaffId
+        StaffName = $sync.StaffName; StaffEmail = $sync.StaffEmail; StaffId = $sync.StaffId; Group = $sync.Group
         Portal = $sync.Portal; Code = $sync.Code; PrevSteps = $prev; SavedAt = (Get-Date -Format 's')
     }
     Initialize-LockedFolder (Split-Path $ResumeFile)
@@ -964,7 +1202,7 @@ if ($resume) {
         PcName = [string]$resume.PcName; Password = ''; UsedBy = [string]$resume.UsedBy; Rename = $false
         BranchCode = [string]$resume.BranchCode; Kind = [string]$resume.Kind; EmployeeMode = [string]$resume.EmployeeMode; EmployeeId = $resume.EmployeeId
         StaffName = [string]$resume.StaffName; StaffEmail = [string]$resume.StaffEmail; StaffId = $resume.StaffId; LoginConfirmed = $false
-        PrevSteps = @($resume.PrevSteps)
+        PrevSteps = @($resume.PrevSteps); Group = [string]$resume.Group
     }
     foreach ($s in $Steps) { $state.StepUi[$s.Key].Check.IsChecked = ($keys -contains $s.Key) }
     $ui.Activity.Text = 'Carrying on after the restart'
@@ -1002,11 +1240,15 @@ if ($env:EASYFIN_GUI_SHOT) {
                 if (-not $state.Linked) { $ui.GroupBox.SelectedItem = 'Miloans'; $ui.BranchBox.SelectedIndex = 7; $ui.NumBox.Text = '2' }
             }
             if ($state.Linked -and $ui.UsedByCombo.Items.Count -gt 2) { $ui.UsedByCombo.SelectedIndex = $ui.UsedByCombo.Items.Count - 1 }
-            & $shot '1-start.png'
-            if (-not $resume) { $ui.StartBtn.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent))) }
+            if (-not $resume) {
+                & $shot '0-what.png'
+                Show-Page 1; & $shot '1-who.png'
+                Show-Page 2; & $shot '2-check.png'
+                $ui.StartBtn.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
+            }
         }
-        if ($state.ShotTick -eq 14) { & $shot '2-working.png' }
-        if ($state.Finished -and -not $state.ShotDone) { $state.ShotDone = $true; & $shot '3-finished.png'; $auto.Stop(); $window.Close() }
+        if ($state.ShotTick -eq 14) { & $shot '3-working.png' }
+        if ($state.Finished -and -not $state.ShotDone) { $state.ShotDone = $true; & $shot '4-finished.png'; $auto.Stop(); $window.Close() }
         if ($state.ShotTick -gt 120) { $auto.Stop(); $window.Close() }
     })
     $auto.Start()

@@ -25,6 +25,7 @@ $Modules = @(
     @{ Key = '9'; Name = 'Speed-up';         File = 'modules/speedup.ps1';          Ready = $true ; RunAll = $true;  Info = 'only Outlook and Teams start with Windows, file endings, no sleep' }
     @{ Key = '10'; Name = 'Defaults, taskbar'; File = 'modules/defaults.ps1';       Ready = $true ; RunAll = $true;  Info = 'Chrome and Acrobat as default apps, Chrome and Outlook on the taskbar' }
     @{ Key = '11'; Name = 'Final check';     File = 'modules/handover.ps1';         Ready = $true ; RunAll = $true;  Info = 'checklist, activation, read-me on the Desktop, tidy up' }
+    @{ Key = '13'; Name = 'Wallpaper';       File = 'modules/wallpaper.ps1';        Ready = $true ; RunAll = $true;  Info = 'group picture on the desktop (Miloans only for now)' }
     @{ Key = '12'; Name = 'Teams account';   File = 'modules/teams-account.ps1';    Ready = $true ; RunAll = $false; Info = 'sign the staff member in to Teams (work or school)' }
 )
 # ===================================================================
