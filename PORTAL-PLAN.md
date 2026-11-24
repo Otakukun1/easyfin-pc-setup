@@ -44,7 +44,7 @@ Max 15 characters (Windows limit); longest here is 13. `L` laptop, `D` desktop, 
 | (Tulbagh - Nico added it, check its code) | Tulbagh | MIL-TULB |
 | DD | De Doorns | QUA-DDOR |
 | VIL | Villiersdorp | QUA-VILL |
-| CER | Ceres | QUA-CT (was QUA-CERE until 24 Nov 2026; trading name Easyfin Ceres, Qualiloans group) |
+| CER | Ceres | QUA-CT (was QUA-CERE until 24 Nov 2026). Easyfin Ceres = CT2, Qualiloans group, QUA-ECT |
 | BRE | Bredasdorp | QUA-BRED |
 | CAL | Caledon | QUA-CALE |
 | BUD | Budget CW (Worcester) | BUD-WORC |
