@@ -279,7 +279,8 @@ if ($resume) {
 
 # --- section 1: group, branch, laptop/desktop, number
 # Group names come from the portal when it sends them, otherwise from the PC name start (MIL-... = Miloans).
-$GroupByHead = @{ MIL = 'Miloans'; QUA = 'Qualiloans'; BUD = 'Budget'; QCK = 'Quickloans'; TLG = 'The Loan Guy'; HO = 'Head Office'; WBDC = 'Debt Collection'; EAS = 'Easyfin' }
+# Offline fallback only - matches the portal's Setup > Branches groups (Quickloans CW sits under Budget). Linked runs use the portal's own group.
+$GroupByHead = @{ MIL = 'Miloans'; QUA = 'Qualiloans'; BUD = 'Budget'; QCK = 'Budget'; TLG = 'The Loan Guy'; HO = 'Head Office'; WBDC = 'Debt Collection' }
 function Get-GroupName {
     param([string]$Prefix, [string]$FromPortal)
     if ($FromPortal) { return $FromPortal }
