@@ -129,6 +129,32 @@ Write-Step 'Optimising the drive (defrag on a hard drive, trim on an SSD - can t
 try { Optimize-Volume -DriveLetter ($env:SystemDrive.TrimEnd(':')) -Verbose:$false -ErrorAction Stop; Write-Ok 'Done.' }
 catch { Write-Warn "Drive optimise: $($_.Exception.Message)" }
 
+# --- every Windows update and driver Windows offers (same step as the work setup). Old PCs often need
+# two or three rounds: run this script again after each restart until it finds nothing.
+Write-Step 'Windows updates and drivers'
+try { & ([scriptblock]::Create((Invoke-RestMethod "$Repo/modules/windows-update.ps1" -UseBasicParsing))) | Out-Host }
+catch { Write-Fail "Updates: $($_.Exception.Message)" }
+
+# --- everyday programs for a school child. winget = Windows' own app installer; each comes from its maker.
+$HomeApps = @(
+    @{ Name = 'Google Chrome';        Id = 'Google.Chrome' }
+    @{ Name = 'VLC (videos, music)';  Id = 'VideoLAN.VLC' }
+    @{ Name = '7-Zip (zip files)';    Id = '7zip.7zip' }
+    @{ Name = 'Adobe Acrobat Reader'; Id = 'Adobe.Acrobat.Reader.64-bit' }
+)
+Write-Step 'Everyday programs'
+$winget = Get-WingetPath
+if (-not $winget) { Write-Warn 'Windows app installer (winget) is not ready yet - after updates and a restart, run this again.' }
+else {
+    foreach ($a in $HomeApps) {
+        $have = (& $winget list --id $a.Id --exact --accept-source-agreements 2>$null) -join ' '
+        if ($have -match [regex]::Escape($a.Id)) { Write-Skip "$($a.Name) is already installed."; continue }
+        Write-Info "Installing $($a.Name)..."
+        $p = Start-Process -FilePath $winget -ArgumentList "install --id $($a.Id) --exact --source winget --silent --accept-package-agreements --accept-source-agreements" -NoNewWindow -Wait -PassThru
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) { Write-Ok "$($a.Name) installed." } else { Write-Warn "$($a.Name) did not install (code $($p.ExitCode))." }
+    }
+}
+
 # --- Office 2013 (same installer as the work setup; asks for the setup password)
 Write-Host ''
 $ans = Read-Host '   Install Office 2013 now? (Y/N)'
@@ -139,5 +165,6 @@ if ($ans -match '^[Yy]') {
 
 Write-Host ''
 Write-Ok 'All done. Restart the PC to feel the full difference.'
+Write-Warn 'After the restart, run this same line again: Windows usually has a second round of updates and drivers.'
 $r = Read-Host '   Restart now? (Y/N)'
 if ($r -match '^[Yy]') { Restart-Computer -Force }
